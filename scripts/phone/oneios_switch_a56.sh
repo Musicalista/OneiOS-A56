@@ -713,7 +713,8 @@ case "$MODE" in
         AT="exec of /data/runtime/$R_XNUHOST"
         echo "oneios inner: $(date '+%F %T') starting /data/runtime/$R_XNUHOST (pid $$)"
         exec "/data/runtime/$R_XNUHOST" --session-abi $ABI --mode takeover \
-            --runtime /data/runtime --image /data/image --data /data/data --session /data/session
+            --runtime /data/runtime --image /data/image --data /data/data --session /data/session \
+            --ram 4096M --set ram-giveback=0 --set ram-prefault=1 --set ram-lock=1 --set wifi=sim
         echo "oneios inner: could not exec xnuhost"
         exit 71
         ;;
