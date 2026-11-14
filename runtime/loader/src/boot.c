@@ -118,11 +118,12 @@ int xl_boot_place(const xl_boot_request *r, xl_boot_layout *out, const char **er
     FAIL("ramdisk layout rejected");
 
   xl_adt_node *map = xl_adt_find(r->tree, "chosen/memory-map");
-  const xl_adt_prop *ramdisk_slot = NULL, *trust_slot, *addon_slot, *policy_slot;
+  const xl_adt_prop *ramdisk_slot = NULL, *ramdisk1_slot = NULL, *trust_slot, *addon_slot, *policy_slot;
   bool keep_packed = map && xl_adt_get(map, "PackedRAMDisk");
   if (keep_packed && map && xl_adt_get(map, "RAMDisk")) FAIL("the device tree names both RAMDisk and PackedRAMDisk");
   if (keep_packed && !ramdisk_packed) FAIL("the device tree asks for a packed ramdisk and the ramdisk is not packed");
   if (claim(map, keep_packed ? "PackedRAMDisk" : "RAMDisk", r->ramdisk.data != NULL, &ramdisk_slot, error) ||
+      claim(map, "RAMDisk1", r->ramdisk.data != NULL, &ramdisk1_slot, error) ||
       claim(map, "TrustCache", r->trustcache.data != NULL, &trust_slot, error) ||
       claim(map, "GpuAddon", r->gpu_addon.data != NULL, &addon_slot, error) ||
       claim(map, "RootPolicies", r->root_policies.data != NULL, &policy_slot, error)) return -1;
@@ -152,6 +153,7 @@ int xl_boot_place(const xl_boot_request *r, xl_boot_layout *out, const char **er
 
   uint64_t pa = r->phys_base, va = r->virt_base;
   fill(map, ramdisk_slot, pa + ramdisk, keep_packed ? r->ramdisk.size : ramdisk_bytes);
+  if (ramdisk1_slot) fill(map, ramdisk1_slot, pa + ramdisk, keep_packed ? r->ramdisk.size : ramdisk_bytes);
   fill(map, trust_slot, pa + trust, r->trustcache.size);
   fill(map, addon_slot, pa + addon, r->gpu_addon.size);
   fill(map, policy_slot, pa + policy, r->root_policies.size);

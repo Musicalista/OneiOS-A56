@@ -1,0 +1,74 @@
+# OneiOS build profile: iOS 16.5 (20F66) for Samsung Galaxy A56 5G (SM-A566E / a56x)
+# Target SoC: Samsung Exynos 1580 (s5e8855 / erd8855)
+# Target GPU: Samsung Xclipse 540 (AMD RDNA3) via /dev/dri/renderD128 (amdgpu/sgpu)
+# Optimizations: Ultra-lightweight QuartzCore compositor, ~1.8 GB RAM footprint, zero zRAM swapping
+schema = 1
+
+[os]
+name = "ios-16.5-20F66-GalaxyA56"
+version = "16.5"
+build = "20F66"
+device = "GalaxyA56"
+board = "d22ap"
+platform = "s5e8855"
+chip_id = 0x8855
+board_id = 0x0E
+arch = "arm64"
+
+[device.hardware]
+vendor = "Samsung"
+model = "SM-A566E"
+codename = "a56x"
+soc = "Exynos 1580"
+cpu_cores = 8
+cpu_topology = [
+    { name = "Cortex-A520", count = 4, max_freq_khz = 1950000, policy = "policy0" },
+    { name = "Cortex-A720", count = 3, max_freq_khz = 2600000, policy = "policy4" },
+    { name = "Cortex-X4",   count = 1, max_freq_khz = 2910000, policy = "policy7" }
+]
+gpu = "Samsung Xclipse 540"
+gpu_arch = "AMD RDNA3"
+drm_node = "/dev/dri/renderD128"
+display_panel = "1080x2340 at 120Hz"
+display_scale = 3
+touch_device = "/dev/input/event4"
+
+[display]
+width = 1080
+height = 2340
+refresh_hz = 120
+scale = 3
+orientation = "portrait"
+
+[launch_policy]
+disable_jobs = [
+    "com.apple.analyticsd",
+    "com.apple.rapportd",
+    "com.apple.parsecd",
+    "com.apple.parsec-fbf",
+    "com.apple.symptomsd",
+    "com.apple.fileindexerd",
+    "com.apple.AppIntentsLiveEntityService",
+    "com.apple.telephonyutilities.callservicesd",
+    "com.apple.OTACrashCopier",
+    "com.apple.cloudtelemetryd",
+    "com.apple.hangtelemetryd",
+    "com.apple.diagnosticd",
+    "com.apple.diagnosticextensions.osx.spotlight.helper",
+    "com.apple.iconservices.iconservicesagent"
+]
+
+[ipsw]
+url = "https://updates.cdn-apple.com/2023SpringFCS/032-44109/4C697B34-3A80-4D56-A6F7-5C72559FE132/iPhone10,3,iPhone10,6_16.5_20F66_Restore.ipsw"
+size = 6165698198
+sha256 = "65757d2427a1a44139d6715f3ec5d827299a913db23dd88e3ad03c94d2c803df"
+variant = "Customer Erase Install (IPSW)"
+
+[image]
+format = 1
+id = "ios-16.5-20F66-GalaxyA56"
+stage = "/data/local/tmp/oneios/image"
+archive = "OneiOS_iOS16.5_20F66_A56.tar.zst"
+chunk = 1048576
+seed = "data.seed"
+kernel = "kernel.kc"
