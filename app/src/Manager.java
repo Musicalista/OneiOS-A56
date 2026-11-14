@@ -286,7 +286,7 @@ public final class Manager extends Activity {
     private void showDownloadDialog() {
         if (busy) return;
         final String[] options = {
-            "📥   Baixar direto do GitHub Releases",
+            "📥   Baixar direto do GitHub Releases (iOS 16.5)",
             "📂   Importar arquivo baixado (/sdcard/Download)",
             "🔗   Inserir URL personalizada"
         };
@@ -295,15 +295,126 @@ public final class Manager extends Activity {
             .setTitle("Instalar Imagem iOS 16.5")
             .setItems(options, (dialog, which) -> {
                 if (which == 0) {
-                    startDownload("https://github.com/Musicalista/OneiOS-A56/releases/download/v1.0.0/ios16.5-a56-image.tar.gz");
+                    startDownloadGithub();
                 } else if (which == 1) {
                     importFromLocal();
-                } else if (which == 2) {
+                } else {
                     showCustomUrlDialog();
                 }
             })
             .setNegativeButton("Cancelar", null)
             .show();
+    }
+
+    private void startDownloadGithub() {
+        if (busy) return;
+        busy = true;
+        start.setEnabled(false);
+        badgeDot.setBackground(makeBox(Color.parseColor("#29B6F6"), 0, 0, 10));
+        badgeText.setText("BAIXANDO");
+        status.setText("[$] Iniciando download do pacote iOS 16.5 direto do GitHub Releases...\n");
+
+        new Thread(() -> {
+            File downloadDir = new File("/sdcard/Download/OneiOS");
+            if (!downloadDir.exists()) downloadDir.mkdirs();
+
+            String[] partUrls = {
+                "https://github.com/Musicalista/OneiOS-A56/releases/download/v1.0.0/ios16.5-a56-image.tar.gz.part00",
+                "https://github.com/Musicalista/OneiOS-A56/releases/download/v1.0.0/ios16.5-a56-image.tar.gz.part01"
+            };
+
+            File targetMerged = new File(downloadDir, "ios16.5-a56-image.tar.gz");
+
+            try {
+                for (int i = 0; i < partUrls.length; i++) {
+                    final int partIdx = i + 1;
+                    String partUrl = partUrls[i];
+                    File partFile = new File(downloadDir, "ios16.5-a56-image.tar.gz.part0" + i);
+
+                    runOnUiThread(() -> {
+                        status.setText("[$] Conectando ao GitHub Releases (Parte " + partIdx + "/2)...\n");
+                        scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
+                    });
+
+                    URL url = new URL(partUrl);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setInstanceFollowRedirects(true);
+                    conn.setRequestProperty("User-Agent", "OneiOS-Manager/1.0");
+                    conn.connect();
+
+                    int code = conn.getResponseCode();
+                    if (code == HttpURLConnection.HTTP_MOVED_PERM || code == HttpURLConnection.HTTP_MOVED_TEMP || code == 307 || code == 308) {
+                        String loc = conn.getHeaderField("Location");
+                        if (loc != null) {
+                            conn.disconnect();
+                            url = new URL(loc);
+                            conn = (HttpURLConnection) url.openConnection();
+                            conn.setRequestProperty("User-Agent", "OneiOS-Manager/1.0");
+                            conn.connect();
+                        }
+                    }
+
+                    code = conn.getResponseCode();
+                    if (code != HttpURLConnection.HTTP_OK) {
+                        conn.disconnect();
+                        throw new java.io.IOException("O servidor respondeu HTTP " + code + " para a parte " + partIdx);
+                    }
+
+                    long totalBytes = conn.getContentLengthLong();
+                    InputStream in = conn.getInputStream();
+                    FileOutputStream out = new FileOutputStream(partFile);
+
+                    byte[] buffer = new byte[65536];
+                    long downloaded = 0;
+                    long lastUpdate = System.currentTimeMillis();
+                    long startTime = lastUpdate;
+                    int read;
+
+                    while ((read = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, read);
+                        downloaded += read;
+                        long now = System.currentTimeMillis();
+                        if (now - lastUpdate > 350) {
+                            lastUpdate = now;
+                            final long d = downloaded;
+                            final long t = totalBytes;
+                            double mbDownloaded = d / (1024.0 * 1024.0);
+                            double mbTotal = t > 0 ? t / (1024.0 * 1024.0) : 0;
+                            double speed = (d / (1024.0 * 1024.0)) / Math.max(0.5, (now - startTime) / 1000.0);
+                            double pct = t > 0 ? (d * 100.0) / t : 0;
+
+                            final String prog = String.format(Locale.US,
+                                "Baixando iOS 16.5 [Parte %d/2]:\n%.1f MB / %.1f MB (%.1f%%) — %.2f MB/s\n",
+                                partIdx, mbDownloaded, mbTotal, pct, speed);
+
+                            runOnUiThread(() -> {
+                                status.setText("[$] Download em andamento...\n" + prog);
+                                scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
+                            });
+                        }
+                    }
+                    out.flush();
+                    out.close();
+                    in.close();
+                    conn.disconnect();
+                }
+
+                runOnUiThread(() -> {
+                    status.setText("[$] Download de todas as partes concluído com sucesso!\nIniciando concatenação e extração...\n");
+                    busy = false;
+                    extractAndStage(targetMerged.getAbsolutePath());
+                });
+
+            } catch (Exception e) {
+                final String err = e.getMessage();
+                runOnUiThread(() -> {
+                    busy = false;
+                    status.setText("Erro durante o download: " + err + "\n\nVocê também pode baixar os arquivos no computador e importar de /sdcard/Download.");
+                    badgeDot.setBackground(makeBox(Color.parseColor("#FF5252"), 0, 0, 10));
+                    badgeText.setText("ERRO DOWNLOAD");
+                });
+            }
+        }).start();
     }
 
     private void showCustomUrlDialog() {
@@ -312,7 +423,7 @@ public final class Manager extends Activity {
         container.setPadding(dp(20), dp(10), dp(20), dp(10));
 
         final EditText input = new EditText(this);
-        input.setText("https://github.com/Musicalista/OneiOS-A56/releases/download/v1.0.0/ios16.5-a56-image.tar.gz");
+        input.setHint("https://…/imagem.tar.gz");
         input.setTextColor(Color.WHITE);
         input.setTextSize(13);
         container.addView(input);
@@ -324,6 +435,10 @@ public final class Manager extends Activity {
             .setPositiveButton("Baixar", (dialog, which) -> {
                 String url = input.getText().toString().trim();
                 if (!url.isEmpty()) {
+                    if (!url.startsWith("https://")) {
+                        status.setText("Informe uma URL HTTPS para o pacote da imagem.");
+                        return;
+                    }
                     startDownload(url);
                 }
             })
@@ -341,7 +456,7 @@ public final class Manager extends Activity {
             for (File f : files) {
                 String name = f.getName().toLowerCase();
                 if (f.isFile() && (name.contains("ios") || name.contains("oneios") || name.contains("image")) &&
-                    (name.endsWith(".tar") || name.endsWith(".tar.gz") || name.endsWith(".tgz") || name.endsWith(".zip"))) {
+                    (name.endsWith(".tar") || name.endsWith(".tar.gz") || name.endsWith(".tgz") || name.endsWith(".zip") || name.endsWith(".part00"))) {
                     candidates.add(f);
                 }
             }
@@ -350,7 +465,7 @@ public final class Manager extends Activity {
         if (oneiosFiles != null) {
             for (File f : oneiosFiles) {
                 String name = f.getName().toLowerCase();
-                if (f.isFile() && (name.endsWith(".tar") || name.endsWith(".tar.gz") || name.endsWith(".tgz") || name.endsWith(".zip"))) {
+                if (f.isFile() && (name.endsWith(".tar") || name.endsWith(".tar.gz") || name.endsWith(".tgz") || name.endsWith(".zip") || name.endsWith(".part00"))) {
                     if (!candidates.contains(f)) candidates.add(f);
                 }
             }
@@ -414,6 +529,14 @@ public final class Manager extends Activity {
                     }
                 }
 
+                code = conn.getResponseCode();
+                if (code != HttpURLConnection.HTTP_OK) {
+                    conn.disconnect();
+                    if (code == HttpURLConnection.HTTP_NOT_FOUND) {
+                        throw new java.io.IOException("Pacote indisponível neste endereço (HTTP 404). Importe um pacote local ou informe outra URL.");
+                    }
+                    throw new java.io.IOException("O servidor respondeu HTTP " + code + ".");
+                }
                 long totalBytes = conn.getContentLengthLong();
                 InputStream in = conn.getInputStream();
                 FileOutputStream out = new FileOutputStream(targetFile);
@@ -438,7 +561,7 @@ public final class Manager extends Activity {
                         double pct = t > 0 ? (d * 100.0) / t : 0;
 
                         final String prog = String.format(Locale.US,
-                            "Baixando imagem iOS 16.5 do GitHub:\n%.1f MB / %.1f MB (%.1f%%) — %.2f MB/s\n",
+                            "Baixando imagem iOS 16.5:\n%.1f MB / %.1f MB (%.1f%%) — %.2f MB/s\n",
                             mbDownloaded, mbTotal, pct, speed);
 
                         runOnUiThread(() -> {
@@ -471,9 +594,17 @@ public final class Manager extends Activity {
     }
 
     private void extractAndStage(String archivePath) {
-        String shellCmd = "echo '=== Descompactando imagem iOS 16.5 ===' && "
+        String shellCmd = "echo '=== Preparando Imagem iOS 16.5 ===' && "
             + "mkdir -p /data/local/tmp/oneios/image && "
-            + "tar -xf '" + archivePath + "' -C /data/local/tmp/oneios/image/ && "
+            + "DIR=$(dirname '" + archivePath + "') && "
+            + "ARCH='" + archivePath + "' && "
+            + "if [ -f \"$DIR/ios16.5-a56-image.tar.gz.part00\" ] && [ ! -s \"$DIR/ios16.5-a56-image.tar.gz\" ]; then "
+            + "  echo '[$] Concatenando partes baixadas (part00 + part01)...' && "
+            + "  cat \"$DIR/ios16.5-a56-image.tar.gz.part\"* > \"$DIR/ios16.5-a56-image.tar.gz\" && "
+            + "  ARCH=\"$DIR/ios16.5-a56-image.tar.gz\"; "
+            + "fi && "
+            + "echo '[$] Descompactando arquivos no runtime...' && "
+            + "tar -xf \"$ARCH\" -C /data/local/tmp/oneios/image/ && "
             + "chown -R 0:0 /data/local/tmp/oneios/image && "
             + "chmod 644 /data/local/tmp/oneios/image/* && "
             + "if [ -f /data/local/tmp/oneios/stage_ios16.sh ]; then /data/local/tmp/oneios/stage_ios16.sh; "
