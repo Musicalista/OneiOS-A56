@@ -5,6 +5,7 @@ import zipfile
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(APP_DIR, "src")
+RES_DIR = os.path.join(APP_DIR, "res")
 CLASSES_DIR = os.path.join(APP_DIR, "build", "classes")
 DEX_DIR = os.path.join(APP_DIR, "build", "dex")
 SDK_JAR = r"C:\Users\Usuario\AppData\Local\Android\Sdk\platforms\android-35\android.jar"
@@ -48,16 +49,16 @@ if res.returncode != 0:
     exit(1)
 print("D8 generated classes.dex.")
 
-print("[3] Packaging with AAPT...")
+print("[3] Packaging with AAPT (including resources & icon)...")
 unsigned_apk = os.path.join(APP_DIR, "build", "manager-unsigned.apk")
 if os.path.exists(unsigned_apk):
     os.remove(unsigned_apk)
-cmd_aapt = [AAPT, "package", "-f", "-M", MANIFEST, "-I", SDK_JAR, "-F", unsigned_apk]
+cmd_aapt = [AAPT, "package", "-f", "-M", MANIFEST, "-S", RES_DIR, "-I", SDK_JAR, "-F", unsigned_apk]
 res = subprocess.run(cmd_aapt, capture_output=True, text=True)
 if res.returncode != 0:
     print("AAPT ERROR:\n", res.stderr)
     exit(1)
-print("AAPT created base APK.")
+print("AAPT created base APK with icon resources.")
 
 print("[4] Adding classes.dex to APK...")
 dex_file = os.path.join(DEX_DIR, "classes.dex")
