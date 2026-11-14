@@ -12,11 +12,20 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 public final class Manager extends Activity {
     private static final String PATH = "/data/local/tmp/oneios/bin/oneios_root.sh";
@@ -24,6 +33,8 @@ public final class Manager extends Activity {
     private TextView badgeText;
     private View badgeDot;
     private Button start;
+    private Button btnDownload;
+    private ScrollView scroll;
     private boolean busy;
 
     private int dp(int val) {
@@ -124,17 +135,17 @@ public final class Manager extends Activity {
         card.setBackground(makeBox(Color.parseColor("#14151C"), Color.parseColor("#232530"), 1, 16));
         card.setPadding(dp(16), dp(14), dp(16), dp(14));
         LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(-1, -2);
-        cardLp.bottomMargin = dp(16);
+        cardLp.bottomMargin = dp(14);
 
         TextView devName = new TextView(this);
-        devName.setText("Samsung Galaxy A56 5G");
+        devName.setText("Samsung Galaxy A56 5G (SM-A566E)");
         devName.setTextSize(14);
         devName.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
         devName.setTextColor(Color.WHITE);
         card.addView(devName);
 
         TextView devDetails = new TextView(this);
-        devDetails.setText("SoC: Exynos 1580 (s5e8855) · GPU: Xclipse 540\nKernel: XNU 25.5.0 · Imagem: iOS 27.0.1 (24A446)");
+        devDetails.setText("SoC: Exynos 1580 (s5e8855) · GPU: Xclipse 540\nKernel: XNU 25.5.0 · Imagem: iOS 16.5 (20F66)");
         devDetails.setTextSize(12);
         devDetails.setLineSpacing(dp(2), 1f);
         devDetails.setTextColor(Color.parseColor("#8E8E93"));
@@ -154,14 +165,27 @@ public final class Manager extends Activity {
         start.setEnabled(false);
         start.setElevation(dp(2));
         start.setOnClickListener(v -> new AlertDialog.Builder(this)
-            .setTitle("Iniciar iOS 27.0.1?")
-            .setMessage("A interface da One UI será pausada e o runtime do iOS assumirá o painel.\n\nPara voltar à One UI a qualquer momento, segure Volume + e Volume - por 3 segundos.")
+            .setTitle("Iniciar iOS 16.5?")
+            .setMessage("A interface da One UI será pausada e o runtime do iOS 16.5 assumirá o painel.\n\nPara voltar à One UI a qualquer momento, segure Volume + e Volume - por 3 segundos.")
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Iniciar", (dialog, which) -> run("switch 115 1")).show());
 
-        LinearLayout.LayoutParams startLp = new LinearLayout.LayoutParams(-1, dp(56));
+        LinearLayout.LayoutParams startLp = new LinearLayout.LayoutParams(-1, dp(54));
         startLp.bottomMargin = dp(10);
         root.addView(start, startLp);
+
+        // --- IN-APP GITHUB DOWNLOAD / IMPORT BUTTON ---
+        btnDownload = new Button(this);
+        btnDownload.setText("📥   BAIXAR / IMPORTAR IMAGEM IOS 16.5");
+        btnDownload.setTextSize(13);
+        btnDownload.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        btnDownload.setTextColor(Color.parseColor("#00B0FF"));
+        btnDownload.setBackground(makeStrokeRipple(Color.parseColor("#0D1B2A"), Color.parseColor("#00B0FF"), 1, 0x3300B0FF, 16));
+        btnDownload.setOnClickListener(v -> showDownloadDialog());
+
+        LinearLayout.LayoutParams dlLp = new LinearLayout.LayoutParams(-1, dp(48));
+        dlLp.bottomMargin = dp(10);
+        root.addView(btnDownload, dlLp);
 
         // --- SECONDARY BUTTON: VOLTAR À ONE UI ---
         Button btnReturn = new Button(this);
@@ -173,14 +197,14 @@ public final class Manager extends Activity {
         btnReturn.setOnClickListener(v -> run("return"));
 
         LinearLayout.LayoutParams retLp = new LinearLayout.LayoutParams(-1, dp(48));
-        retLp.bottomMargin = dp(14);
+        retLp.bottomMargin = dp(12);
         root.addView(btnReturn, retLp);
 
         // --- ACTION BUTTONS ROW (STATUS & LOGS) ---
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, dp(44));
-        rowLp.bottomMargin = dp(14);
+        LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, dp(42));
+        rowLp.bottomMargin = dp(12);
 
         Button btnStatus = new Button(this);
         btnStatus.setText("⟳  Atualizar Status");
@@ -241,7 +265,7 @@ public final class Manager extends Activity {
 
         root.addView(termHeader, new LinearLayout.LayoutParams(-1, -2));
 
-        ScrollView scroll = new ScrollView(this);
+        scroll = new ScrollView(this);
         scroll.setBackground(makeBottomRound(Color.parseColor("#07080A"), Color.parseColor("#1B1C24"), 1, 14));
         scroll.setPadding(dp(12), dp(10), dp(12), dp(12));
 
@@ -257,6 +281,240 @@ public final class Manager extends Activity {
         setContentView(root);
 
         run("status");
+    }
+
+    private void showDownloadDialog() {
+        if (busy) return;
+        final String[] options = {
+            "📥   Baixar direto do GitHub Releases",
+            "📂   Importar arquivo baixado (/sdcard/Download)",
+            "🔗   Inserir URL personalizada"
+        };
+
+        new AlertDialog.Builder(this)
+            .setTitle("Instalar Imagem iOS 16.5")
+            .setItems(options, (dialog, which) -> {
+                if (which == 0) {
+                    startDownload("https://github.com/Musicalista/OneiOS-A56/releases/download/v1.0.0/ios16.5-a56-image.tar.gz");
+                } else if (which == 1) {
+                    importFromLocal();
+                } else if (which == 2) {
+                    showCustomUrlDialog();
+                }
+            })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    private void showCustomUrlDialog() {
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(dp(20), dp(10), dp(20), dp(10));
+
+        final EditText input = new EditText(this);
+        input.setText("https://github.com/Musicalista/OneiOS-A56/releases/download/v1.0.0/ios16.5-a56-image.tar.gz");
+        input.setTextColor(Color.WHITE);
+        input.setTextSize(13);
+        container.addView(input);
+
+        new AlertDialog.Builder(this)
+            .setTitle("URL da Imagem iOS 16.5")
+            .setMessage("Digite ou cole a URL do arquivo de imagem (.tar ou .tar.gz):")
+            .setView(container)
+            .setPositiveButton("Baixar", (dialog, which) -> {
+                String url = input.getText().toString().trim();
+                if (!url.isEmpty()) {
+                    startDownload(url);
+                }
+            })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    private void importFromLocal() {
+        File downloadDir = new File("/sdcard/Download");
+        File oneiosDir = new File(downloadDir, "OneiOS");
+        List<File> candidates = new ArrayList<>();
+
+        File[] files = downloadDir.listFiles();
+        if (files != null) {
+            for (File f : files) {
+                String name = f.getName().toLowerCase();
+                if (f.isFile() && (name.contains("ios") || name.contains("oneios") || name.contains("image")) &&
+                    (name.endsWith(".tar") || name.endsWith(".tar.gz") || name.endsWith(".tgz") || name.endsWith(".zip"))) {
+                    candidates.add(f);
+                }
+            }
+        }
+        File[] oneiosFiles = oneiosDir.listFiles();
+        if (oneiosFiles != null) {
+            for (File f : oneiosFiles) {
+                String name = f.getName().toLowerCase();
+                if (f.isFile() && (name.endsWith(".tar") || name.endsWith(".tar.gz") || name.endsWith(".tgz") || name.endsWith(".zip"))) {
+                    if (!candidates.contains(f)) candidates.add(f);
+                }
+            }
+        }
+
+        if (candidates.isEmpty()) {
+            new AlertDialog.Builder(this)
+                .setTitle("Nenhum arquivo encontrado")
+                .setMessage("Nenhum pacote (.tar / .tar.gz) foi encontrado em /sdcard/Download ou /sdcard/Download/OneiOS.\n\nBaixe o arquivo pelo navegador ou copie para o aparelho.")
+                .setPositiveButton("OK", null)
+                .show();
+            return;
+        }
+
+        String[] names = new String[candidates.size()];
+        for (int i = 0; i < candidates.size(); i++) {
+            File c = candidates.get(i);
+            long mb = c.length() / (1024 * 1024);
+            names[i] = c.getName() + " (" + mb + " MB)";
+        }
+
+        new AlertDialog.Builder(this)
+            .setTitle("Selecione o arquivo de imagem")
+            .setItems(names, (dialog, which) -> {
+                File selected = candidates.get(which);
+                extractAndStage(selected.getAbsolutePath());
+            })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    private void startDownload(String fileUrl) {
+        if (busy) return;
+        busy = true;
+        start.setEnabled(false);
+        badgeDot.setBackground(makeBox(Color.parseColor("#29B6F6"), 0, 0, 10));
+        badgeText.setText("BAIXANDO");
+        status.setText("[$] Conectando ao servidor...\nURL: " + fileUrl + "\n");
+
+        new Thread(() -> {
+            File downloadDir = new File("/sdcard/Download/OneiOS");
+            if (!downloadDir.exists()) downloadDir.mkdirs();
+            File targetFile = new File(downloadDir, "ios16.5-a56-image.tar.gz");
+
+            try {
+                URL url = new URL(fileUrl);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setInstanceFollowRedirects(true);
+                conn.setRequestProperty("User-Agent", "OneiOS-Manager/1.0");
+                conn.connect();
+
+                int code = conn.getResponseCode();
+                if (code == HttpURLConnection.HTTP_MOVED_PERM || code == HttpURLConnection.HTTP_MOVED_TEMP || code == 307 || code == 308) {
+                    String loc = conn.getHeaderField("Location");
+                    if (loc != null) {
+                        conn.disconnect();
+                        url = new URL(loc);
+                        conn = (HttpURLConnection) url.openConnection();
+                        conn.setRequestProperty("User-Agent", "OneiOS-Manager/1.0");
+                        conn.connect();
+                    }
+                }
+
+                long totalBytes = conn.getContentLengthLong();
+                InputStream in = conn.getInputStream();
+                FileOutputStream out = new FileOutputStream(targetFile);
+
+                byte[] buffer = new byte[65536];
+                long downloaded = 0;
+                long lastUpdate = System.currentTimeMillis();
+                long startTime = lastUpdate;
+                int read;
+
+                while ((read = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, read);
+                    downloaded += read;
+                    long now = System.currentTimeMillis();
+                    if (now - lastUpdate > 350) {
+                        lastUpdate = now;
+                        final long d = downloaded;
+                        final long t = totalBytes;
+                        double mbDownloaded = d / (1024.0 * 1024.0);
+                        double mbTotal = t > 0 ? t / (1024.0 * 1024.0) : 0;
+                        double speed = (d / (1024.0 * 1024.0)) / Math.max(0.5, (now - startTime) / 1000.0);
+                        double pct = t > 0 ? (d * 100.0) / t : 0;
+
+                        final String prog = String.format(Locale.US,
+                            "Baixando imagem iOS 16.5 do GitHub:\n%.1f MB / %.1f MB (%.1f%%) — %.2f MB/s\n",
+                            mbDownloaded, mbTotal, pct, speed);
+
+                        runOnUiThread(() -> {
+                            status.setText("[$] Download em andamento...\n" + prog);
+                            scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
+                        });
+                    }
+                }
+                out.flush();
+                out.close();
+                in.close();
+                conn.disconnect();
+
+                runOnUiThread(() -> {
+                    status.setText("[$] Download concluído com sucesso (" + (targetFile.length() / (1024 * 1024)) + " MB)!\nIniciando extração...\n");
+                    busy = false;
+                    extractAndStage(targetFile.getAbsolutePath());
+                });
+
+            } catch (Exception e) {
+                final String err = e.getMessage();
+                runOnUiThread(() -> {
+                    busy = false;
+                    status.setText("Erro durante o download: " + err + "\n\nVocê também pode baixar o arquivo no computador ou navegador e importar de /sdcard/Download.");
+                    badgeDot.setBackground(makeBox(Color.parseColor("#FF5252"), 0, 0, 10));
+                    badgeText.setText("ERRO DOWNLOAD");
+                });
+            }
+        }).start();
+    }
+
+    private void extractAndStage(String archivePath) {
+        String shellCmd = "echo '=== Descompactando imagem iOS 16.5 ===' && "
+            + "mkdir -p /data/local/tmp/oneios/image && "
+            + "tar -xf '" + archivePath + "' -C /data/local/tmp/oneios/image/ && "
+            + "chown -R 0:0 /data/local/tmp/oneios/image && "
+            + "chmod 644 /data/local/tmp/oneios/image/* && "
+            + "if [ -f /data/local/tmp/oneios/stage_ios16.sh ]; then /data/local/tmp/oneios/stage_ios16.sh; "
+            + "elif [ -f /data/local/tmp/oneios/tools/stage_ios16.sh ]; then /data/local/tmp/oneios/tools/stage_ios16.sh; fi";
+        runShell("Extrair e Configurar Imagem iOS 16.5", shellCmd);
+    }
+
+    private void runShell(String actionLabel, String command) {
+        if (busy) return;
+        busy = true;
+        start.setEnabled(false);
+        start.setBackground(makeRipple(Color.parseColor("#262833"), 0x33FFFFFF, 16));
+        badgeDot.setBackground(makeBox(Color.parseColor("#FFA000"), 0, 0, 10));
+        badgeText.setText("EXECUTANDO");
+        status.setText("[$] " + actionLabel + "\n");
+
+        new Thread(() -> {
+            try {
+                Process process = new ProcessBuilder("su", "-c", command).redirectErrorStream(true).start();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    for (String line; (line = reader.readLine()) != null;) {
+                        final String l = line;
+                        runOnUiThread(() -> {
+                            status.append(l + "\n");
+                            scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
+                        });
+                    }
+                }
+                process.waitFor();
+            } catch (Exception e) {
+                final String err = e.getMessage();
+                runOnUiThread(() -> {
+                    status.append("Erro: " + err + "\n");
+                    scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
+                });
+            }
+            runOnUiThread(() -> {
+                busy = false;
+                run("status");
+            });
+        }).start();
     }
 
     private void run(String action) {
@@ -292,10 +550,10 @@ public final class Manager extends Activity {
             runOnUiThread(() -> {
                 busy = false;
                 status.setText(message);
+                scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
                 boolean isReady = message.contains("@@RESULT ready 1");
                 start.setEnabled(isReady);
                 if (isReady) {
-                    // One UI / Cupertino Vibrant Green Pill
                     start.setBackground(makeRipple(Color.parseColor("#00C853"), 0x33FFFFFF, 16));
                     badgeDot.setBackground(makeBox(Color.parseColor("#00E676"), 0, 0, 10));
                     badgeText.setText("SISTEMA PRONTO");

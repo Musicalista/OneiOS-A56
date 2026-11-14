@@ -37,21 +37,28 @@ While experimental builds of iOS 27 run into heavy zRAM paging (>16 GB disk imag
 
 ## Quick Start & Installation
 
-### Option A: Install via APK + Dirtyfrag (Rootless Softmod)
-1. Download [app/OneiOS-A56.apk](app/OneiOS-A56.apk) and install it on your Galaxy A56 5G.
-2. Obtain root privilege using the **Dirtyfrag** softmod tool or **KernelSU** (`u:r:ksu:s0`).
-3. Deploy the runtime and image files to `/data/local/tmp/oneios/`:
+### Option A: Direct In-App Setup (Easiest / No PC Required)
+1. Download and install [app/OneiOS-A56.apk](app/OneiOS-A56.apk) on your Galaxy A56 5G.
+2. Grant root access via **KernelSU** or **Dirtyfrag** (Knox 0x0 preserved).
+3. Open **OneiOS** and tap **📥 BAIXAR / IMPORTAR IMAGEM IOS 16.5**.
+4. Select **Baixar direto do GitHub Releases** to automatically download, extract, and configure the image.
+5. Once the badge turns green (**SISTEMA PRONTO**), tap **▶ INICIAR SESSÃO IOS**.
+
+### Option B: Manual Deploy via ADB
+1. Download and install `OneiOS-A56.apk`.
+2. Deploy the runtime and image files to `/data/local/tmp/oneios/`:
    ```bash
    adb push runtime/ /data/local/tmp/oneios/runtime/
    adb push image/ /data/local/tmp/oneios/image/
-   adb push scripts/phone/oneios_switch_a56.sh /data/local/tmp/oneios/oneios_switch.sh
+   adb push tools/stage_ios16.sh /data/local/tmp/oneios/stage_ios16.sh
+   adb shell su -c "/data/local/tmp/oneios/stage_ios16.sh"
    ```
-4. Verify system integrity:
+3. Verify system integrity:
    ```bash
    adb shell su -c "/data/local/tmp/oneios/oneios_switch.sh --check"
    # Must return: PREFLIGHT OK
    ```
-5. Open the **OneiOS Manager** app on your phone and tap **INICIAR SESSÃO IOS**.
+4. Open the **OneiOS Manager** app on your phone and tap **INICIAR SESSÃO IOS**.
 
 ---
 
@@ -109,7 +116,8 @@ PASS native AMDGPU fence completed
 │   ├── architecture.md          # OneiOS architectural documentation
 │   └── gpu.md                   # GPU / DRM native context specification
 ├── profiles/
-│   └── ios-27.0.1-a56.toml      # Galaxy A56 configuration profile
+│   ├── ios-16.5-a56.toml        # Optimized Galaxy A56 configuration profile
+│   └── ios-27.0.1-a56.toml      # Experimental iOS 27 profile
 ├── scripts/
 │   └── phone/
 │       └── oneios_switch_a56.sh # Production switcher with CPU lock and failsafes

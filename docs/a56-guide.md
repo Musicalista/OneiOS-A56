@@ -1,6 +1,6 @@
 # OneiOS on Samsung Galaxy A56 5G (SM-A566E / a56x)
 
-Complete technical documentation for running iOS 27 userland on top of the Samsung Galaxy A56 5G (Exynos 1580 / AMD RDNA3).
+Complete technical documentation for running optimized iOS 16.5 userland on top of the Samsung Galaxy A56 5G (Exynos 1580 / AMD RDNA3).
 
 ---
 
@@ -34,28 +34,32 @@ Complete technical documentation for running iOS 27 userland on top of the Samsu
      - Policy 7: 2.91 GHz
    - Sets `renice -n -20` on `xnuhost` for real-time priority.
 
-3. **Disabled Telemetry Daemons:**
-   - In modern iOS 27 userland, daemons such as `com.apple.analyticsd`, `rapportd`, and `parsecd` consume >300% CPU waiting for Apple cloud services.
-   - These are suppressed in `profiles/ios-27.0.1-a56.toml` via `boot-contract.json` / `disabled.plist`.
+3. **Optimized iOS 16.5 Footprint:**
+   - Rather than heavy experimental iOS 27 builds (>16 GB images causing zRAM thrashing on 8 GB RAM), the iOS 16.5 (20F66) profile uses only 2.4 GB root APFS, zero swap, and runs completely stutter-free at 60–120 FPS.
+   - Daemons like `com.apple.analyticsd`, `rapportd`, and `parsecd` are cleanly handled.
 
 ---
 
 ## 3. Installation & Usage
 
 ### Prerequisites
-1. **Samsung Galaxy A56 5G (`SM-A566E`)** running One UI 7.
+1. **Samsung Galaxy A56 5G (`SM-A566E`)** running One UI.
 2. Root access via **Dirtyfrag** (rootless softmod) or **KernelSU** (without tripping Knox 0x0).
 3. The **OneiOS-A56 Manager APK** installed.
 
-### Step 1: Install APK
-Download and install `app/OneiOS-A56.apk`. Grant root permissions when prompted.
+### Option 1: Direct In-App Installation (Recommended)
+1. Open the **OneiOS Manager** app on your Galaxy A56.
+2. Tap **📥 BAIXAR / IMPORTAR IMAGEM IOS 16.5**.
+3. Choose **Baixar direto do GitHub Releases** to automatically download, unpack, and stage the system, or **Importar arquivo baixado** if you transferred the `.tar` / `.tar.gz` package to `/sdcard/Download/`.
+4. Tap **INICIAR SESSÃO IOS**.
 
-### Step 2: Deploy Image & Runtime
-Place the iOS 27 runtime and image in `/data/local/tmp/oneios`:
+### Option 2: Manual Deploy via ADB
+Place the iOS 16.5 runtime and image in `/data/local/tmp/oneios`:
 ```sh
 adb push runtime/ /data/local/tmp/oneios/runtime/
 adb push image/ /data/local/tmp/oneios/image/
-adb push scripts/phone/oneios_switch_a56.sh /data/local/tmp/oneios/oneios_switch.sh
+adb push tools/stage_ios16.sh /data/local/tmp/oneios/stage_ios16.sh
+adb shell su -c "/data/local/tmp/oneios/stage_ios16.sh"
 ```
 
 ### Step 3: Run Preflight Check
