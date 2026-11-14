@@ -73,6 +73,18 @@ adb shell su -c "chmod 0755 /data/local/tmp/test_a56_gpu && /data/local/tmp/test
 === TEST COMPLETED ===
 ```
 
+And test the native xnuhost AMDGPU hardware integration:
+```sh
+adb shell su -c "/data/local/tmp/oneios/runtime/bin/xnuhost --selftest-xclipse"
+```
+**Expected output:**
+```
+PASS VirtIO response pool shares guest RAM and clears recycled ranges
+PASS mapped imported guest memory into Xclipse GPU VA
+PASS submitted native AMDGPU command buffer, sequence 1
+PASS native AMDGPU fence completed
+```
+
 ---
 
 ## Repository Structure

@@ -698,7 +698,8 @@ case "$MODE" in
         # daemons, or panic. The guest is what goes first; its end is a return.
         echo 500 > /proc/$$/oom_score_adj 2>/dev/null
         export ONEIOS_SESSION_ABI=$ABI ONEIOS_MODE=takeover ONEIOS_RUNTIME=/data/runtime ONEIOS_IMAGE=/data/image \
-               ONEIOS_DATA=/data/data ONEIOS_SESSION=/data/session TMPDIR=/data/session/tmp
+               ONEIOS_DATA=/data/data ONEIOS_SESSION=/data/session TMPDIR=/data/session/tmp \
+               ONEIOS_AMDGPU_RENDER_NODE=/dev/dri/renderD128
         unset BB ONEIOS_APP ONEIOS_TEST_ROOT
         # A switch that gave up on this shell meanwhile is returning to One
         # UI: nothing starts under it. "running" is not giving up: the outer

@@ -24,6 +24,7 @@ Complete technical documentation for running iOS 27 userland on top of the Samsu
    - **Exynos 1580 (A56):** Uses Linux standard Direct Rendering Manager (DRM) `amdgpu` driver (v3.49.0) over `/dev/dri/renderD128`.
    - PRIME dma-buf buffer sharing is supported (`DRM_CAP_PRIME: 0x3` - import & export).
    - Test tool: `tools/test_a56_gpu` validates udmabuf import into GEM handles.
+   - Built-in bridge: `xnuhost` compiled with `XH_AMDGPU=1` dynamically targets `/dev/dri/renderD128` via `ONEIOS_AMDGPU_RENDER_NODE`.
 
 2. **CPU Clock Pinning:**
    - In One UI, the Energy-Aware Scheduler (EAS) throttles clocks when traps occur.
