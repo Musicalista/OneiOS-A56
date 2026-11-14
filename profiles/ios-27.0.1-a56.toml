@@ -1,0 +1,70 @@
+# OneiOS build profile: iOS 27.0.1 (24A446) for Samsung Galaxy A56 5G (SM-A566E / a56x)
+# Target SoC: Samsung Exynos 1580 (s5e8855 / erd8855)
+# Target GPU: Samsung Xclipse 540 (AMD RDNA3) via /dev/dri/renderD128 (amdgpu/sgpu)
+schema = 1
+
+[os]
+name = "ios-27.0.1-24A446-GalaxyA56"
+version = "27.0.1"
+build = "24A446"
+device = "GalaxyA56"
+board = "v54ap"
+platform = "t8150"
+chip_id = 0x8150
+board_id = 0x0E
+arch = "arm64e"
+
+[device.hardware]
+vendor = "Samsung"
+model = "SM-A566E"
+codename = "a56x"
+soc = "Exynos 1580"
+cpu_cores = 8
+cpu_topology = [
+    { name = "Cortex-A520", count = 4, max_freq_khz = 1950000, policy = "policy0" },
+    { name = "Cortex-A720", count = 3, max_freq_khz = 2600000, policy = "policy4" },
+    { name = "Cortex-X4",   count = 1, max_freq_khz = 2910000, policy = "policy7" }
+]
+gpu = "Samsung Xclipse 540"
+gpu_arch = "AMD RDNA3"
+drm_node = "/dev/dri/renderD128"
+display_panel = "1080x2340 at 120Hz"
+display_scale = 3
+touch_device = "/dev/input/event4"
+
+[display]
+width = 1080
+height = 2340
+refresh_hz = 120
+scale = 3
+orientation = "portrait"
+
+[launch_policy]
+disable_jobs = [
+    "com.apple.analyticsd",
+    "com.apple.rapportd",
+    "com.apple.parsecd",
+    "com.apple.parsec-fbf",
+    "com.apple.symptomsd",
+    "com.apple.fileindexerd",
+    "com.apple.AppIntentsLiveEntityService",
+    "com.apple.telephonyutilities.callservicesd",
+    "com.apple.OTACrashCopier",
+    "com.apple.cloudtelemetryd",
+    "com.apple.hangtelemetryd"
+]
+
+[ipsw]
+url = "https://updates.cdn-apple.com/2026FallFCS/3b7299da-a6a5-4bf6-82db-cd37f8c2d160/iPhone18,2_27.0.1_24A446_Restore.ipsw"
+size = 12708916186
+sha256 = "b1535ded2e84bf1d7c716372e498bd10720b2b47374e7e1b4f885a6075b921eb"
+variant = "Customer Erase Install (IPSW)"
+
+[image]
+format = 1
+id = "ios-27.0.1-24A446-GalaxyA56"
+stage = "/data/local/tmp/oneios/image"
+archive = "OneiOS_iOS27.0.1_24A446_A56.tar.zst"
+chunk = 1048576
+seed = "data.seed"
+kernel = "kernel.kc"
