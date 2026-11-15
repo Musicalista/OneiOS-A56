@@ -1,0 +1,26 @@
+--- a/osfmk/ipc/ipc_policy.c
++++ b/osfmk/ipc/ipc_policy.c
+@@ -100,6 +100,10 @@
+ 
+ TUNABLE(bool, cv_notif_port_required_enforced, "cv_notif_port_required_enforced", false);
+ 
++#if XNU_HOSTED
++static TUNABLE(uint32_t, hosted_legacy_bootstrap_replies, "oneios-legacy-bootstrap-replies", 0);
++#endif
++
+ #pragma mark policy options
+ 
+ inline bool
+@@ -596,6 +600,12 @@
+ 			policy_violation = IPC_SEC_POLICY_REQUIRE_REPLY_PORT_SEMANTICS_KOBJECT;
+ 		}
+ 	} else if (ip_is_bootstrap_port(dest_port)) {
++		/* iOS 16 bootstrap clients use ordinary MIG reply ports. */
++#if XNU_HOSTED
++		if (hosted_legacy_bootstrap_replies) {
++			return MACH_MSG_SUCCESS;
++		}
++#endif
+ 		/* bootstrap port defense */
+ 		if (ipc_should_apply_policy(pol, IPC_POLICY_ENHANCED_V2) &&
+ 		    !ip_is_reply_port(reply_port) &&

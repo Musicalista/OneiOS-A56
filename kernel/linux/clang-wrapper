@@ -39,7 +39,7 @@ if [ "$arch" = arm64e ]; then
   # The BCM2837 machine config passes no -mcpu, and stock clang's default CPU for arm64e is ARMv8.3: the assembler
   # then refuses `msr DIT` (ARMv8.4) in cswitch.s, which Apple's accepts. For the assembler only: ARMv8.5.
   # Compiled code keeps the default CPU. (The S24 Ultra's cores are ARMv9.2.)
-  exec "$real" -target "arm64e-apple-ios$ios" -Wa,-march=armv8.5-a -fptrauth-function-pointer-type-discrimination \
+  exec "$real" -target "arm64e-apple-ios$ios" -Wa,-march=armv8.5-a -fptrauth-intrinsics -fptrauth-calls -fptrauth-returns -fptrauth-function-pointer-type-discrimination \
     -mllvm -disable-atexit-based-global-dtor-lowering \
     -D__ARM_ARCH_8_2__=1 -D__ARM_ARCH_8_3__=1 -D__ARM_ARCH_8_4__=1 -D__ARM_ARCH_8_5__=1 "${args[@]}"
 fi

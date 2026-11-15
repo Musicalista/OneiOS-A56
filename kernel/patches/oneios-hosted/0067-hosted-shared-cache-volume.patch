@@ -1,0 +1,21 @@
+--- a/bsd/vm/vm_unix.c
++++ b/bsd/vm/vm_unix.c
+@@ -1789,7 +1789,18 @@
+ #define PREBOOT_CRYPTEX_PATH "/private/preboot/Cryptexes"
+ #endif
+ 			error = vnode_lookup(PREBOOT_CRYPTEX_PATH, 0, &preboot_vp, vfs_context_current());
++#if XNU_HOSTED
++			/* The SystemOS union can sit above the verified OS mount. */
++			extern volatile uintptr_t native_owner_cache_original_root;
++			vnode_t original_root = (vnode_t)native_owner_cache_original_root;
++			bool hosted_os_cache = original_root &&
++			    srfmp->vp->v_mount == original_root->v_mount &&
++			    (vfs_flags(srfmp->vp->v_mount) & MNT_RDONLY);
++#endif
+ 			if ((error || srfmp->vp->v_mount != preboot_vp->v_mount)
++#if XNU_HOSTED
++			    && !hosted_os_cache
++#endif
+ #if defined(XNU_OWNER_CACHE_CARRIER) && XNU_OWNER_CACHE_CARRIER
+ 			    && !owner_carrier
+ #endif

@@ -1,0 +1,69 @@
+--- a/osfmk/mach/task.defs
++++ b/osfmk/mach/task.defs
+@@ -132,7 +132,7 @@
+  *	Stash a handful of ports for the target task; child
+  *	tasks inherit this stash at task_create time.
+  */
+-#if LIBSYSCALL_INTERFACE
++#if LIBSYSCALL_INTERFACE || KERNEL_SERVER
+ routine	mach_ports_register(
+ 		target_task	: task_t;
+ 		init_port_set	: mach_port_array_t =
+@@ -148,7 +148,7 @@
+ /*
+  *	Retrieve the stashed ports for the target task.
+  */
+-#if LIBSYSCALL_INTERFACE
++#if LIBSYSCALL_INTERFACE || KERNEL_SERVER
+ routine	mach_ports_lookup(
+ 		target_task	: task_t;
+ 	out	init_port_set	: mach_port_array_t =
+--- a/osfmk/kern/ipc_tt.c
++++ b/osfmk/kern/ipc_tt.c
+@@ -2273,6 +2273,46 @@
+ 	return KERN_SUCCESS;
+ }
+ 
++#if XNU_HOSTED
++/* The 16.5 Mach user ABI carries the registered ports in one OOL descriptor. */
++kern_return_t
++mach_ports_register(task_t task, mach_port_array_t ports, mach_msg_type_number_t count)
++{
++	if (task != current_task() || count > TASK_PORT_REGISTER_MAX || (!ports && count)) {
++		return KERN_INVALID_ARGUMENT;
++	}
++	ipc_port_t names[TASK_PORT_REGISTER_MAX] = { 0 };
++	for (mach_msg_type_number_t i = 0; i < count; i++) {
++		names[i] = ports[i].port;
++	}
++	kern_return_t kr = _kernelrpc_mach_ports_register3(task, names[0], names[1], names[2]);
++	if (kr == KERN_SUCCESS && ports) {
++		mach_port_array_free(ports, count);
++	}
++	return kr;
++}
++
++kern_return_t
++mach_ports_lookup(task_t task, mach_port_array_t *ports, mach_msg_type_number_t *count)
++{
++	if (task != current_task()) {
++		return KERN_INVALID_ARGUMENT;
++	}
++	mach_port_array_t result = mach_port_array_alloc(TASK_PORT_REGISTER_MAX, Z_WAITOK | Z_ZERO);
++	if (!result) {
++		return KERN_RESOURCE_SHORTAGE;
++	}
++	ipc_port_t names[3]; kern_return_t kr = _kernelrpc_mach_ports_lookup3(task, &names[0], &names[1], &names[2]);
++	if (kr != KERN_SUCCESS) {
++		mach_port_array_free(result, TASK_PORT_REGISTER_MAX);
++		return kr;
++	}
++	for (unsigned i = 0; i < 3; i++) { result[i].port = names[i]; } *ports = result;
++	*count = TASK_PORT_REGISTER_MAX;
++	return KERN_SUCCESS;
++}
++#endif
++
+ static kern_return_t
+ task_conversion_eval_internal(
+ 	task_t             caller,

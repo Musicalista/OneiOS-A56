@@ -224,3 +224,7 @@
 # oneios-display-wide=1 (xnuhost's display-format=rgba16f) a half-float 'RGhA' frame goes to the virtio scanout as it
 # is (xnuhost's format 0x52476841); OneiOSDisplay.cpp logs each surface format the compositor swaps and the display
 # service's properties (display/README.md, "Colour, depth and the panel").
+
+0067-hosted-shared-cache-volume.patch
+0068-hosted-ios16-registered-ports.patch
+0069-hosted-ios16-bootstrap-replies.patch

@@ -41,6 +41,85 @@ pub const GPU: &[(&str, &str)] = &[
 /// (oneios-gpu-kinds:, oneios-gpu-ages:; docs/gpu.md 5.1). The hooks are weak: without OneiOSAdreno.cpp nothing changes.
 /// Each anchor must be there exactly once.
 pub const GPU3D: &[(&str, &str)] = &[
+    (r#"    CcmdIoctlSimple ="#,
+     r#"    ContextMsm = 1, ContextAmdgpu = 2, AmdgpuQueryInfo = 1, AmdgpuInfoAccelWorking = 0,
+    CcmdIoctlSimple ="#),
+    (r#"void stage(uint64_t"#,
+     r#"// AMDGPU_CCMD_QUERY_INFO contains the 32-byte drm_amdgpu_info UAPI structure.
+struct AmdgpuQuery {
+    uint32_t command, length, seqno, responseOffset;
+    uint64_t returnPointer;
+    uint32_t returnSize, query, arguments[4];
+};
+static_assert(sizeof(AmdgpuQuery) == 48, "AMDGPU query wire size");
+void stage(uint64_t"#),
+    (r#"    uint64_t poolBase ="#,
+     r#"    const bool amd = caps.contextType == ContextAmdgpu;
+    if (!amd && caps.contextType != ContextMsm) {
+        stage(3, kIOReturnUnsupported);
+        return;
+    }
+    uint64_t poolBase ="#),
+    (r#"        uint8_t request[16 + 4 + sizeof(DrmMsmParam)] = {};"#,
+     r#"        uint8_t request[sizeof(AmdgpuQuery)] = {};
+        const uint32_t requestSize = amd ? sizeof(AmdgpuQuery) : 20 + sizeof(DrmMsmParam);
+        const uint32_t responseSize = amd ? 12 : 8 + sizeof(DrmMsmParam);"#),
+    (r#"uint32_t(sizeof request), 1, 0}, ioctl"#,
+     r#"requestSize, 1, 0}, ioctl"#),
+    (r#"        memcpy(request, header, sizeof header); memcpy(request + 16, &ioctl, 4); memcpy(request + 20, &param, sizeof param);"#,
+     r#"        if (amd) {
+            const AmdgpuQuery query = {AmdgpuQueryInfo, requestSize, 1, 0, 0,
+                                       sizeof(uint32_t), AmdgpuInfoAccelWorking, {}};
+            memcpy(request, &query, sizeof query);
+        } else {
+            memcpy(request, header, sizeof header);
+            memcpy(request + 16, &ioctl, 4);
+            memcpy(request + 20, &param, sizeof param);
+        }"#),
+    (r#"        // The host copies back at most the length the guest wrote at the response (its guard against the guest changing it
+        // meanwhile), as vdrm_alloc_rsp does: msm_ccmd_ioctl_simple_rsp, its length and return value and the drm_msm_param.
+        *reinterpret_cast<volatile uint32_t *>(reinterpret_cast<volatile uint8_t *>(shmem) + shmem->responseOffset) = 8 + sizeof(DrmMsmParam);
+        Submit submit = {{CmdSubmit3D, 0, 0, context, 0, {}}, uint32_t(sizeof request), 0};
+        uint32_t ticket = 0;
+        status = post(&submit, sizeof submit, request, sizeof request, sizeof reply, false, &ticket);"#,
+     r#"        const uint32_t responseOffset = shmem->responseOffset;
+        const bool validOffset = responseOffset >= sizeof(Shmem) && !(responseOffset & 3) &&
+                                 responseOffset <= ShmemBytes - responseSize;
+        volatile uint8_t *response = validOffset ? reinterpret_cast<volatile uint8_t *>(shmem) + responseOffset : nullptr;
+        Submit submit = {{CmdSubmit3D, 0, 0, context, 0, {}}, requestSize, 0};
+        uint32_t ticket = 0;
+        status = kIOReturnBadArgument;
+        if (response) {
+            // vdrm_alloc_rsp writes the space available to the host before submission.
+            *reinterpret_cast<volatile uint32_t *>(response) = responseSize;
+            status = post(&submit, sizeof submit, request, requestSize, sizeof reply, false, &ticket);
+        }"#),
+    (r#"            // msm_ccmd_ioctl_simple_rsp: the length, the ioctl's return value, then the drm_msm_param as the host filled it.
+            const volatile uint8_t *response = reinterpret_cast<const volatile uint8_t *>(shmem) + shmem->responseOffset;
+            int32_t ret; DrmMsmParam answered;
+            memcpy(&ret, const_cast<const uint8_t *>(response) + 4, 4);
+            memcpy(&answered, const_cast<const uint8_t *>(response) + 8, sizeof answered);
+            droidvm_virtgpu_selftest[5] = uint32_t(ret); droidvm_virtgpu_selftest[6] = answered.value;
+            droidvm_virtgpu_selftest[8] = shmem->seqno; droidvm_virtgpu_selftest[9] = shmem->responseOffset;
+            for (unsigned i = 0; i < 4; ++i) memcpy(const_cast<uint64_t *>(&droidvm_virtgpu_selftest[10 + i]), const_cast<const uint8_t *>(response) + 8 * i, 8);
+            stage(9, 0);
+            IOLog("virtgpu-selftest: shmem at pool %llx, seqno %u; GET_PARAM(GPU_ID) ret %d value %llu\n", droidvm_virtgpu_selftest[4],
+                  shmem->seqno, ret, answered.value);"#,
+     r#"            uint32_t words[8] = {};
+            for (unsigned i = 0; i < responseSize / 4; ++i)
+                words[i] = reinterpret_cast<const volatile uint32_t *>(response)[i];
+            const int32_t ret = int32_t(words[1]);
+            uint64_t value = 0;
+            if (words[0] == responseSize) {
+                if (amd) value = words[2];
+                else memcpy(&value, words + 4, sizeof value);
+            }
+            droidvm_virtgpu_selftest[5] = uint32_t(ret); droidvm_virtgpu_selftest[6] = value;
+            droidvm_virtgpu_selftest[8] = shmem->seqno; droidvm_virtgpu_selftest[9] = responseOffset;
+            memcpy(const_cast<uint64_t *>(&droidvm_virtgpu_selftest[10]), words, sizeof words);
+            stage(9, !ret && words[0] == responseSize && value ? 0 : kIOReturnIOError);
+            IOLog("virtgpu-selftest: %s ret %d value %llu response %u seqno %u\n",
+                  amd ? "AMDGPU ACCEL_WORKING" : "MSM GPU_ID", ret, value, words[0], shmem->seqno);"#),
     ("DroidVMClientMemory droidvm_virtgpu_client_memory[64];\n",
      concat!("DroidVMClientMemory droidvm_virtgpu_client_memory[64];\n",
              "// OneiOS: a blob made (its resource id, client slot, bytes, kind bits: 1 host-visible, 2 the caller's pages wired,\n",
