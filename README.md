@@ -11,6 +11,14 @@ Unlike traditional ROMs or bare-metal replacements, **OneiOS does not flash part
 
 ---
 
+## Screenshots from the Galaxy A56
+
+These captures show the OneiOS Manager running in Android. The iOS 16.5 validation run reached `Early boot complete` and displayed a black frame. SpringBoard is still pending validation.
+
+<img src="docs/screenshots/a56-oneios-manager.png" alt="OneiOS Manager on the Galaxy A56" width="300">
+<img src="docs/screenshots/a56-image-options.png" alt="iOS 16.5 image options in OneiOS Manager" width="300">
+
+
 ## Why iOS 16.5 on Galaxy A56 5G? (Zero Stutter / 60–120 FPS)
 
 While experimental builds of iOS 27 run into heavy zRAM paging (>16 GB disk images thrashing the A56's 8 GB physical RAM, with `PosterBoard` and wallpaper extensions pegging CPU cores at 450%), the **iOS 16.5 (20F66)** profile is tuned specifically for the Exynos 1580 / Xclipse 540 architecture:
