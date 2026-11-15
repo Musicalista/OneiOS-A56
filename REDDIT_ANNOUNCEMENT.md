@@ -59,6 +59,18 @@ To prevent energy-aware scheduler (EAS) throttling during trapped context switch
 - **4x Cortex-A520 @ 1.95 GHz** (Efficiency Cores)
 - Real-time priority (`-20` renice) assigned to the `xnuhost` thread group.
 
+#### 6. AGXAccelerator User Client Gate (Type 0x1) & Framebuffer Rendering Fix
+When booting with the Galaxy A56 unlocked, `backboardd` and `SpringBoard` initialized cleanly, but the display buffer remained 100% black (`0x00000000`). Analysis of the guest log revealed:
+```text
+[ 11140.190] guest oneios-gpu-open: backboardd[46] AGXAccelerator type 0x1 -> 0xe00002c7
+```
+`0xe00002c7` is `kIOReturnUnsupported`. The underlying GPU publishing driver (`NativeAdrenoPublish.cpp`) had a legacy gate refusing any connection where `type != NativeAdrenoPluginOpenType (0x4147)`. However, stock iOS 16.5 `backboardd` calls `IOServiceOpen` requesting client type `0x1` (`kIOContextDeviceClient`). Because this call was rejected, CoreAnimation was denied an accelerator context and aborted surface allocation.
+
+By updating the open gate to accept `((type & 0xff) == 1)` alongside `0x4147`:
+- `backboardd` claims **slot 0** (the dedicated high-performance ring buffer with active mailbox polling thread).
+- The driver injects the `NativeSandboxGrant` boolean property onto the client, bypassing Mandatory Access Control Framework (MACF) restrictions in userland.
+- `backboardd` immediately creates hardware-backed surfaces, routing native composited frames directly into the OneiOS display buffer and illuminating the AMOLED panel.
+
 ---
 
 ### Frequently Asked Questions (FAQ)
