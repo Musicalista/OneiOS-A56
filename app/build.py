@@ -53,7 +53,8 @@ print("[3] Packaging with AAPT (including resources & icon)...")
 unsigned_apk = os.path.join(APP_DIR, "build", "manager-unsigned.apk")
 if os.path.exists(unsigned_apk):
     os.remove(unsigned_apk)
-cmd_aapt = [AAPT, "package", "-f", "-M", MANIFEST, "-S", RES_DIR, "-I", SDK_JAR, "-F", unsigned_apk]
+ASSETS_DIR = os.path.join(APP_DIR, "assets")
+cmd_aapt = [AAPT, "package", "-f", "-M", MANIFEST, "-S", RES_DIR, "-A", ASSETS_DIR, "-I", SDK_JAR, "-F", unsigned_apk]
 res = subprocess.run(cmd_aapt, capture_output=True, text=True)
 if res.returncode != 0:
     print("AAPT ERROR:\n", res.stderr)

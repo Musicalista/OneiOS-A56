@@ -280,7 +280,7 @@ public final class Manager extends Activity {
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         setContentView(root);
 
-        run("status");
+        ensureBootstrap();
     }
 
     private void showDownloadDialog() {
@@ -645,6 +645,51 @@ public final class Manager extends Activity {
                 busy = false;
                 run("status");
             });
+        }).start();
+    }
+
+    private void ensureBootstrap() {
+        new Thread(() -> {
+            File script = new File(PATH);
+            if (!script.exists()) {
+                runOnUiThread(() -> {
+                    badgeDot.setBackground(makeBox(Color.parseColor("#FFA000"), 0, 0, 10));
+                    badgeText.setText("INSTALANDO");
+                    status.setText("[$] Inicializando ambiente do OneiOS no aparelho...\n");
+                });
+
+                try {
+                    File cacheDir = getCacheDir();
+                    File tarFile = new File(cacheDir, "bootstrap.tar");
+                    try (InputStream in = getAssets().open("bootstrap.tar");
+                         FileOutputStream fos = new FileOutputStream(tarFile)) {
+                        byte[] buf = new byte[16384];
+                        int r;
+                        while ((r = in.read(buf)) != -1) {
+                            fos.write(buf, 0, r);
+                        }
+                    }
+
+                    String cmd = "mkdir -p /data/local/tmp/oneios && "
+                        + "tar -xf " + tarFile.getAbsolutePath() + " -C /data/local/tmp/oneios/ && "
+                        + "rm -f " + tarFile.getAbsolutePath() + " && "
+                        + "chown -R 0:0 /data/local/tmp/oneios && "
+                        + "chmod 755 /data/local/tmp/oneios/bin/* /data/local/tmp/oneios/*.sh /data/local/tmp/oneios/runtime/bin/* 2>/dev/null";
+
+                    Process p = new ProcessBuilder("su", "-c", cmd).redirectErrorStream(true).start();
+                    p.waitFor();
+
+                    runOnUiThread(() -> {
+                        status.append("[$] Ambiente instalado com sucesso em /data/local/tmp/oneios!\n");
+                    });
+                } catch (Exception e) {
+                    final String err = e.getMessage();
+                    runOnUiThread(() -> {
+                        status.append("[!] Erro na instalacao automatica: " + err + "\n");
+                    });
+                }
+            }
+            runOnUiThread(() -> run("status"));
         }).start();
     }
 
