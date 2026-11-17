@@ -223,13 +223,14 @@ log_scan() { # <first byte, from 1> <stage so far>
             else if (panic == "" && t ~ /^panic\(cpu [0-9]+ caller 0x[0-9a-f]+\): /) { panic = t; sub(/^panic\([^)]*\): /, "", panic) }
             if (index(t, "backboardd[")) s(8)
             if (index(t, "SpringBoard[") || index(t, "crashed: SpringBoard.")) s(9)
+            if (index(t, "datamigrat") || index(t, "datamigrator")) s(10)
             next
         }
         line ~ /^xnuhost I / {
             t = substr(line, 11)
             if (index(t, "xnuhost: session ABI ") == 1) { st = 1; boot = 1; panic = ""; why = ""; code = ""; err = "" }
             else if (index(t, "cpu0: entering the kernel at ") == 1) s(2)
-            else if (index(t, "guest ready: first frame") == 1) s(10)
+            else if (index(t, "guest ready: first frame") == 1) s(11)
             else if (index(t, "stopping: ") == 1) { why = substr(t, 11); sub(/ \(reason [0-9]+, code [0-9]+\)$/, "", why) }
             else if (t ~ /^exit [0-9]+$/) code = substr(t, 6)
             next
@@ -255,7 +256,8 @@ stage_text() { # <stage of log_scan>
         7) echo "launchd is running" ;;
         8) echo "backboardd started" ;;
         9) echo "SpringBoard started" ;;
-        10) echo "iOS is up: waiting for its first frame" ;;
+        10) echo "Preparing system data - migrating storage, please wait..." ;;
+        11) echo "iOS is up: waiting for its first frame" ;;
     esac
 }
 # One line on why xnuhost ended, from the last 64 KiB of its log.
@@ -273,18 +275,16 @@ why_ended() {
             else print "xnuhost ended"
         }'
 }
-# The display helper runs and has the guest's picture: its first frame is
-# posted, or xnuhost reported ready and the helper's layer is up. Its layer is
-# above the boot screen's, so the picture covers the boot screen first and the
-# boot screen is taken away under it.
+# The helper initially posts a blank buffer. Keep the boot status active
+# until xnuhost has copied visible guest pixels and the helper has a layer.
 display_up() {
+    [ -e "$SESSION/ready" ] || return 1
     for dp in $(cat "$CTL/display.pid" 2>/dev/null); do
         case "$(cat "$P/$dp/cmdline" 2>/dev/null | tr '\0' ' ')" in
             *OneiOSDisplay*|*oneios-display*) ;;
             *) continue ;;
         esac
-        grep -q 'oneios-display: first frame posted' "$CTL/display.log" 2>/dev/null && return 0
-        [ -e "$SESSION/ready" ] && grep -q 'oneios-display: layer up' "$CTL/display.log" 2>/dev/null && return 0
+        grep -q 'oneios-display: layer up' "$CTL/display.log" 2>/dev/null && return 0
     done
     return 1
 }
@@ -912,11 +912,11 @@ case "$MODE" in
         # far as starting xnuhost (60 s), xnuhost ended, a return was asked
         # ($SESSION/return.request: the volume keys, the guest, adb), or the
         # guest never said it is up ($SESSION/ready) within ONEIOS_RETURN_MAX
-        # seconds of its start (600; 0 = no limit).
+        # seconds of its start (1800; 0 = no limit).
         echo $$ > "$CTL/watcher.pid"
         out_of_the_way
-        MAX="${ONEIOS_RETURN_MAX:-600}"
-        case "$MAX" in ''|*[!0-9]*) MAX=600 ;; esac
+        MAX="${ONEIOS_RETURN_MAX:-1800}"
+        case "$MAX" in ''|*[!0-9]*) MAX=1800 ;; esac
         awake() { echo oneios_session 2>/dev/null > "$T/sys/power/wake_lock"; }
         SCREEN=""
         go() {
@@ -964,7 +964,7 @@ case "$MODE" in
                 go "xnuhost $pid ended (last log lines: $(tail -n 3 "$SESSION/xnuhost.log" 2>/dev/null | tr '\n' '|' | cut -c1-300))"
             fi
             if [ "$MAX" -gt 0 ] && [ ! -e "$SESSION/ready" ] && [ $t -ge "$MAX" ]; then
-                SCREEN="iOS did not come up within ${MAX} s"
+                SCREEN="iOS did not show a visible frame within ${MAX} s"
                 go "the guest did not report ready within ${MAX}s"
             fi
             # Nothing else keeps the phone awake with One UI's framework gone:
@@ -1299,5 +1299,5 @@ else
 fi
 
 echo "=== [5/5] $(date +%T) Session running ==="
-echo "Auto-return to One UI: when xnuhost ends, on $SESSION/return.request, or without $SESSION/ready after ${ONEIOS_RETURN_MAX:-600}s"
+echo "Auto-return to One UI: when xnuhost ends, on $SESSION/return.request, or without $SESSION/ready after ${ONEIOS_RETURN_MAX:-1800}s"
 echo "=== ONEIOS SESSION LAUNCHED ==="

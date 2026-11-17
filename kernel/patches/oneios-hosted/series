@@ -228,6 +228,3 @@
 0067-hosted-shared-cache-volume.patch
 0068-hosted-ios16-registered-ports.patch
 0069-hosted-ios16-bootstrap-replies.patch
-
-0070-native-adreno-device-client-open.patch
-0071-native-adreno-virtgpu-device-client.patch
