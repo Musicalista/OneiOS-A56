@@ -784,6 +784,9 @@ public final class Manager extends Activity {
                         + "find $S/bin $S/runtime -type f -exec chmod 644 {} +; "
                         + "chmod 755 $S/bin/*.sh $S/runtime/bin/*; chmod 700 $S/oneios_switch.sh; chmod 755 $S/oneios_return.sh $S/stage_ios16.sh; "
                         + "chmod 644 $S/runtime.sha256 $S/runtime.conf; "
+                        // The A56's USB gadget drops adb during a session: the switch's USB watcher and the return
+                        // repair it only with this flag (oneios_switch.sh usb_save, "repair=").
+                        + "touch $S/usb-repair && chmod 644 $S/usb-repair; "
                         + "[ \"$(sha256sum $S/bin/oneios_root.sh | cut -d' ' -f1)\" = " + ROOT_SHA + " ] || { echo '[!] oneios_root.sh do pacote não confere com o pin do app'; exit 1; }; "
                         + "echo " + want + " > $S/.bootstrap; "
                         + "echo '[$] Ambiente instalado.'";

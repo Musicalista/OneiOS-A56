@@ -728,8 +728,17 @@ case "$MODE" in
             # The image's boot arguments, else xnuhost's default (config.c):
             # --boot-args replaces both, so they are carried over whole.
             BA=$(conf /data/image/overlay/userland/xnuhost.conf boot-args)
+            if [ -z "$BA" ] && [ "$(conf /data/image.conf build)" = 20F66 ]; then
+                # The A56's 20F66 session as run on the phone (2026-11-18, the
+                # lock screen): no 3D virtio-gpu, no Metal, iOS 16's bootstrap
+                # replies (kernel 0069), the legacy unit scale and a 120 Hz vsync.
+                # The trace arguments of those runs (oneios-iouc, oneios-iokit,
+                # oneios-ubt*, sheng-exc-name, oneios-dq-dump,
+                # oneios-display-report) are left out: ONEIOS_DIAG_BOOTARGS adds them.
+                BA="debug=0x14e serial=3 -v kt_fixed_zones=120 -no_slto_panic ml-timeout-lock-panic-scale=40 tlto_us=0 sheng-smp=1 armcpu-self-ipi=1 armcpu-spi-ipi=1 use_contiguous_hint=0 interrupt-masked-debug-mode=0 sched_preemption_disable_debug_mode=0 wdt=-1 native-source-storage=1 vgpu-3d=0 droidvm-gpu-metal=0 ool_port_array_enforced=0 offline-legacy-unit-scale=3 sheng-vsync=120 oneios-legacy-bootstrap-replies=1"
+            fi
             [ -n "$BA" ] || BA="debug=0x14e serial=3 -v kt_fixed_zones=120 -no_slto_panic ml-timeout-lock-panic-scale=40 tlto_us=0 sheng-smp=1 armcpu-self-ipi=1 armcpu-spi-ipi=1 use_contiguous_hint=0 interrupt-masked-debug-mode=0 sched_preemption_disable_debug_mode=0 wdt=-1 native-source-storage=1 vgpu-3d=1 droidvm-gpu-metal=1"
-            BA=$(echo " $BA " | sed 's/ oneios-gpu-metal=[^ ]*//g; s/^ *//; s/ *$//')
+            BA=$(echo " $BA ${ONEIOS_DIAG_BOOTARGS:-} " | sed 's/ oneios-gpu-metal=[^ ]*//g; s/^ *//; s/ *$//')
             set -- --boot-args "$BA oneios-gpu-metal=$GPU_METAL"
             echo "oneios inner: Metal accelerator: oneios-gpu-metal=$GPU_METAL"
         fi
@@ -759,6 +768,26 @@ case "$MODE" in
             set -- "$@" --set text-fixup=keybagd,cf5c,600000b4,1f2003d5 \
                 --set text-fixup=dyld_shared_cache_arm64.03,15e4684,e8279f1a,28008052
             echo "oneios inner: 20F66 text fixups: keybagd, QuartzCore hardware vsync"
+            # The display: the helper's shared frame, composited on the CPU.
+            set -- "$@" --display shm --gpu 2d
+            # The guest frame: the panel's 1080x2340 at @3x, pinned. iOS then
+            # sees a 360x780-point screen, a width no iPhone has: 20F66's UIKit
+            # finds no status bar visual provider and shows "Please see
+            # rdar://45025538" on screen. iPhone X's 1125x2436 (375x812 points,
+            # the image's d22ap) removes that cause, but on the phone
+            # (2026-11-18) SpringBoard then aborted in a loop (SIGABRT every
+            # ~11 s, Apple logo); why is open. ONEIOS_FRAME=WxH tries another
+            # size; ONEIOS_FRAME=panel asks the panel's mode.
+            FRAME="${ONEIOS_FRAME:-1080x2340}"
+            case "$FRAME" in
+                panel) echo "oneios inner: guest frame: the panel's mode (ONEIOS_FRAME=panel)" ;;
+                [1-9]*x[1-9]*)
+                    FW=${FRAME%x*}; FH=${FRAME#*x}
+                    case "$FW$FH" in *[!0-9]*) die_inner "ONEIOS_FRAME must be WxH or panel, not '$FRAME'" ;; esac
+                    set -- "$@" --width "$FW" --height "$FH" --hz 120 --scale 3
+                    echo "oneios inner: guest frame ${FW}x${FH} @3x ($((FW / 3))x$((FH / 3)) points)" ;;
+                *) die_inner "ONEIOS_FRAME must be WxH or panel, not '$FRAME'" ;;
+            esac
         fi
         AT="exec of /data/runtime/$R_XNUHOST"
         echo "oneios inner: $(date '+%F %T') starting /data/runtime/$R_XNUHOST (pid $$)"
