@@ -66,7 +66,7 @@ On the unlocked Galaxy A56, `backboardd` and `SpringBoard` started, but the gues
 [ 11140.190] guest oneios-gpu-open: backboardd[46] AGXAccelerator type 0x1 -> 0xe00002c7
 ```
 
-The stock iOS graphics client uses the Apple IOGPU interface. The existing NativeAdreno client uses the OneiOS Metal plug-in protocol. Rendering on the A56 still requires an iOS 16.5-compatible graphics path.
+The stock iOS graphics client uses the Apple IOGPU interface. The existing NativeAdreno client uses the OneiOS Metal plug-in protocol. iOS 16.5 sessions now start without the Metal accelerator (`oneios-gpu-metal=0`). The kernel's framebuffer and IOSurface drivers come from iOS 27, so a translation layer in the kernel (patch `0072`) rewrites iOS 16.5's calls to them. With it the A56 shows the Apple boot logo drawn by iOS 16.5; getting past the logo to SpringBoard is the next step.
 
 ---
 
@@ -94,7 +94,7 @@ The stock iOS graphics client uses the Apple IOGPU interface. The existing Nativ
    ```text
    📥   BAIXAR / IMPORTAR IMAGEM IOS 16.5
    ```
-   Select **📥 Baixar direto do GitHub Releases (iOS 16.5)**. The app streams the image parts directly from GitHub Releases into `/sdcard/Download/OneiOS/`, automatically concatenates them, extracts the files into `/data/local/tmp/oneios/image/`, and stages checksums.
+   Select **📥 Baixar direto do GitHub Releases (iOS 16.5)**. The app downloads the image parts from GitHub Releases into its own folder (an interrupted download resumes where it stopped), streams them straight into `/data/local/tmp/oneios/image/` without joining them on disk first, and stages the checksums.
    *(Alternatively, if you downloaded the package via browser or PC, choose **📂 Importar arquivo baixado**)*.
 4. **Launch iOS:**
    Once verified, the Dynamic Island status indicator will turn vibrant green:

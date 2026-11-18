@@ -228,3 +228,19 @@
 0067-hosted-shared-cache-volume.patch
 0068-hosted-ios16-registered-ports.patch
 0069-hosted-ios16-bootstrap-replies.patch
+
+# iOS 16.5 (20F66) userland on this collection's iOS 27 (24A446) IOMobileGraphicsFamily and IOSurface: the external
+# methods kept their numbers but some structures grew, and the dispatch tables check sizes exactly, so 20F66's
+# calls were refused (0xe00002c2) and the A56's panel stayed black. 0072 rewrites them in is_io_connect_method:
+# IOMobileFramebufferUserClient 5 (the swap record, 0x46c -> 0x6e0) and 74 (1 -> 2 scalars out),
+# IOSurfaceRootUserClient 0/2/4/6/7/34 (the surface info, 24A446's 0xc68 bytes rewritten into 20F66's 0xa68 layout,
+# field by field) and 13 (limits, 0x18 <- 0x28). One line at the first rewrite of each kind: "oneios-iomfb: iOS 16
+# call rewritten for iOS 27: ...". oneios-iomfb-swap16=0: off. Not rewritten (not on the compositor's path):
+# IOSurfaceRootUserClient 27/28 (bulk attachments), 36/38 (accelerator). docs/a56-guide.md has the maps.
+0072-iomfb-ios16-swap-record.patch
+
+# iOS 16.5 (20F66) mediaserverd never ran on the A56: xpcproxy's exec ended with OS_REASON_EXEC 8 (security policy) every
+# 5 s, nothing on the console: a MAC policy refused mac_cred_label_update_execve. 0073 logs which one
+# ("oneios-mac-exec: NAME: policy P refused the credential update (error E)", at most 200 lines) and, with
+# oneios-mac-exec-skip=NAME[,NAME...], ignores a Sandbox refusal for those executables (they run unsandboxed).
+0073-mac-exec-label-report.patch

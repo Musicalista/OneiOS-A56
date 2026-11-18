@@ -710,11 +710,61 @@ case "$MODE" in
             starting|running) ;;
             *) die_inner "the switch is no longer starting (state '$ST'): xnuhost is not started" ;;
         esac
+        # The Metal accelerator. iOS 16.5's (20F66) stock Metal opens
+        # AGXAccelerator as an IOGPU device client (type 1), which NativeAdreno
+        # does not serve (0xe00002c7): backboardd then has a Metal device that
+        # cannot draw, and the panel stays black. Without the accelerator
+        # CoreAnimation composites on the CPU and the frames reach the scanout
+        # (docs/gpu.md). So for 20F66 the accelerator is not published
+        # (oneios-gpu-metal=0, which wins over droidvm-gpu-metal=1 in the
+        # image's boot arguments). ONEIOS_GPU_METAL=0|1 forces either way.
+        GPU_METAL="${ONEIOS_GPU_METAL:-}"
+        if [ -z "$GPU_METAL" ]; then
+            case "$(conf /data/image.conf build)" in 20F66) GPU_METAL=0 ;; esac
+        fi
+        set --
+        if [ -n "$GPU_METAL" ]; then
+            case "$GPU_METAL" in 0|1) ;; *) die_inner "ONEIOS_GPU_METAL must be 0 or 1, not '$GPU_METAL'" ;; esac
+            # The image's boot arguments, else xnuhost's default (config.c):
+            # --boot-args replaces both, so they are carried over whole.
+            BA=$(conf /data/image/overlay/userland/xnuhost.conf boot-args)
+            [ -n "$BA" ] || BA="debug=0x14e serial=3 -v kt_fixed_zones=120 -no_slto_panic ml-timeout-lock-panic-scale=40 tlto_us=0 sheng-smp=1 armcpu-self-ipi=1 armcpu-spi-ipi=1 use_contiguous_hint=0 interrupt-masked-debug-mode=0 sched_preemption_disable_debug_mode=0 wdt=-1 native-source-storage=1 vgpu-3d=1 droidvm-gpu-metal=1"
+            BA=$(echo " $BA " | sed 's/ oneios-gpu-metal=[^ ]*//g; s/^ *//; s/ *$//')
+            set -- --boot-args "$BA oneios-gpu-metal=$GPU_METAL"
+            echo "oneios inner: Metal accelerator: oneios-gpu-metal=$GPU_METAL"
+        fi
+        # 20F66's text fixups (the kernel applies each only where the original
+        # bytes match). A text-fixup on the command line replaces the image's
+        # xnuhost.conf ones, so keybagd's (roottweak's) is carried here too.
+        # QuartzCore: CoreAnimation uses IOMobileFramebuffer's vsync
+        # notifications (selector 72, which the display backend serves) only
+        # with CA_FORCE_TIMER set or on an old ChipID (0x7000..0x8010);
+        # otherwise it never asks for vsync and the panel stays on the boot
+        # logo. The fixup makes that check answer yes (cset w8, cc -> mov w8, #1
+        # at 0x188364684 in subcache .03; docs/a56-guide.md).
+        # 20F66's mediaserverd (and TVRemoteConnectionService) are refused by
+        # 24A446's Sandbox at exec (mac_cred_label_update_execve, error 1:
+        # their profiles are not this kernel's); without mediaserverd
+        # SpringBoard waits forever for com.apple.coremedia.systemcontroller.xpc
+        # on the boot logo. Kernel 0073's oneios-mac-exec-skip runs them
+        # without their sandbox profile.
+        if [ "$(conf /data/image.conf build)" = 20F66 ]; then
+            case " $* " in
+                *" --boot-args "*) BA_NOW=$2; shift 2; set -- --boot-args "$BA_NOW oneios-mac-exec-skip=mediaserverd,TVRemoteConnectionService" "$@" ;;
+                *) BA=$(conf /data/image/overlay/userland/xnuhost.conf boot-args)
+                   [ -n "$BA" ] && set -- --boot-args "$BA oneios-mac-exec-skip=mediaserverd,TVRemoteConnectionService" "$@" ;;
+            esac
+        fi
+        if [ "$(conf /data/image.conf build)" = 20F66 ]; then
+            set -- "$@" --set text-fixup=keybagd,cf5c,600000b4,1f2003d5 \
+                --set text-fixup=dyld_shared_cache_arm64.03,15e4684,e8279f1a,28008052
+            echo "oneios inner: 20F66 text fixups: keybagd, QuartzCore hardware vsync"
+        fi
         AT="exec of /data/runtime/$R_XNUHOST"
         echo "oneios inner: $(date '+%F %T') starting /data/runtime/$R_XNUHOST (pid $$)"
         exec "/data/runtime/$R_XNUHOST" --session-abi $ABI --mode takeover \
             --runtime /data/runtime --image /data/image --data /data/data --session /data/session \
-            --ram 4096M --set ram-giveback=0 --set ram-prefault=1 --set ram-lock=1 --set wifi=sim
+            --ram 4096M --set ram-giveback=0 --set ram-prefault=1 --set ram-lock=1 --set wifi=sim "$@"
         echo "oneios inner: could not exec xnuhost"
         exit 71
         ;;
@@ -993,7 +1043,7 @@ P_MODEL=$(getprop ro.product.model)
 P_DEVICE=$(getprop ro.product.device)
 P_SOC=$(getprop ro.soc.model)
 case "$P_MODEL:$P_DEVICE:$P_SOC" in
-    SM-S928*:e3q:SM8650|SM-A566E:a56x:s5e8855) ;;
+    SM-S928*:e3q:SM8650|SM-A566*:a56x:s5e8855) ;;
     *) refuse "unsupported device: $P_MODEL ($P_DEVICE, $P_SOC)" ;;
 esac
 

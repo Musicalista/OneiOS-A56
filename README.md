@@ -13,7 +13,7 @@ Unlike traditional ROMs or bare-metal replacements, **OneiOS does not flash part
 
 ## Screenshots from the Galaxy A56
 
-These captures show the OneiOS Manager running in Android. The iOS 16.5 validation run reached `Early boot complete` and displayed a black frame. SpringBoard is still pending validation.
+These captures show the OneiOS Manager running in Android. The iOS 16.5 validation run reached `Early boot complete` and displayed a black frame: `backboardd` was given a Metal accelerator whose IOGPU device client (type 1) the NativeAdreno driver does not serve. iOS 16.5 sessions now start without the accelerator (`oneios-gpu-metal=0`). The kernel collection carries iOS 27's IOMobileGraphicsFamily and IOSurface, whose structures differ from what iOS 16.5 sends and expects; kernel patch `0072` rewrites those calls (swap record, SupportedFrameInfo, IOSurface limits and surface info). With it the A56 shows the Apple boot logo drawn by iOS 16.5 (2026-11-17), and a QuartzCore text fixup makes CoreAnimation use the framebuffer's vsync. The boot does not yet go past the logo: SpringBoard stops early in its own start, before it draws anything (`docs/a56-guide.md`).
 
 <img src="docs/screenshots/a56-oneios-manager.png" alt="OneiOS Manager on the Galaxy A56" width="300">
 <img src="docs/screenshots/a56-image-options.png" alt="iOS 16.5 image options in OneiOS Manager" width="300">

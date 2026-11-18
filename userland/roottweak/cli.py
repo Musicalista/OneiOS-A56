@@ -90,7 +90,10 @@ def _apply(a):
                     'ml-timeout-lock-panic-scale=40 tlto_us=0 sheng-smp=1 armcpu-self-ipi=1 '
                     'armcpu-spi-ipi=1 use_contiguous_hint=0 interrupt-masked-debug-mode=0 '
                     'sched_preemption_disable_debug_mode=0 wdt=-1 native-source-storage=1 '
-                    'vgpu-3d=1 droidvm-gpu-metal=1 ool_port_array_enforced=0 '
+                    # oneios-gpu-metal=0: 20F66's stock Metal opens AGXAccelerator as an IOGPU device
+                    # client (type 1), which NativeAdreno does not serve; without the accelerator
+                    # CoreAnimation composites on the CPU instead of leaving the panel black.
+                    'vgpu-3d=1 oneios-gpu-metal=0 ool_port_array_enforced=0 '
                     'oneios-legacy-bootstrap-replies=1\n')
             keybagd = 'usr/libexec/keybagd'
             # Scope the software keystore path to keybagd. The global APFS boot
@@ -98,6 +101,9 @@ def _apply(a):
             if (cx.root.isfile(keybagd) and hashlib.sha256(cx.root.read(keybagd)).hexdigest() ==
                     '3fab018f83b3c4a89d1e0e726caf16a4dcf27adeb662dbe7b09a500abf841b64'):
                 f.write('text-fixup=keybagd,cf5c,600000b4,1f2003d5\n')
+            # QuartzCore (subcache .03): use IOMobileFramebuffer's vsync notifications as with
+            # CA_FORCE_TIMER, instead of a newer mechanism the display backend does not offer.
+            f.write('text-fixup=dyld_shared_cache_arm64.03,15e4684,e8279f1a,28008052\n')
     with open(os.path.join(a.out, 'report.txt'), 'w') as f:
         f.write(report)
     sys.stdout.write(report)
