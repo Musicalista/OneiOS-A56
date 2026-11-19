@@ -239,6 +239,14 @@ Both built; not run.
   /Applications: kept` (or `dropped (...)`). If K stays 0 on a database that does hold the apps, the database does
   not store the names as plain text, and only `oneios-ls-keep=1` keeps it. The scan was tested on the Mac against
   sample bytes (a name across two 1 MiB chunks, `Notes.apps` against `Notes.app`); not on a real database.
+  **A56 / iOS 16.5 (2026-11-18):** 20F66's `/Applications` holds `DisplayCal.app`, a macOS bundle
+  (`Contents/Info.plist`, no `Info.plist` at its top), which lsd never registers (`Failed to load Info.plist`). The
+  test counted it, so every database read `names 172 of 173 apps of /Applications: dropped`. lsd then rebuilt it at
+  every boot and SpringBoard's main thread waited about 66 s after the first frame (thread samples: a lock wait in
+  LaunchServices under ControlCenterServices), with touches unanswered. Now an entry without its own `Info.plist` is
+  left out of the list. Tested on the phone so far only with `oneios-ls-keep=1` (database kept, the 66 s wait gone);
+  the changed test is built (kernel.kc de6a571c and later), but every boot since ran with `oneios-ls-keep=1`, so it is
+  not yet verified on its own.
 - **0044, `oneios-enable-jobs`** (default `com.apple.analyticsd`; `-` for none). Before launchd, each listed job's
   `<true/>` in the Data store's `/private/var/db/com.apple.xpc.launchd/disabled.plist` becomes `<false/>` (enabled),
   and the file is written again (root's, 0644). The image's daemon policy disabled analyticsd (vphone's base27); then
@@ -1078,3 +1086,21 @@ offer and DroidVMVirtioGpuDisplay.cpp's resources carry the scanout format: `sta
 (`oneios-display: properties: ...`) and each surface format the compositor swaps (`oneios-display: the compositor
 swaps format 'BGRA' ...: taken`). Without the boot argument the frames take the path they took before. Not compiled
 yet: the kernel build, prelink and a PC boot are the next step (`display/README.md`).
+
+## 0074-0077: the A56 touch investigation (iOS 16.5 on the Galaxy A56, 2026-11-18/19)
+
+- **0074** `oneios-dq-dump=N`: the first N shared data queue entries (IOHIDEvents queued for backboardd) in hex. Off
+  without it.
+- **0075** `oneios-dq-notify=1`: counts IODataQueue's "data available" notifications and what each send returned, one
+  `oneios-dq-notify:` line every 2 s. Phone (kernel.kc a01f38e3): 1521 sends for 1531 touch events, all `ok`, none
+  `already queued`: the kernel tells backboardd of every touch at once, so the lag is not in the kernel's delivery.
+- **0076** the return's graceful window sends `logd` SIGTERM (`oneios_power_request()`, docs/booter.md "The return");
+  the A56 switch passes `--set return-graceful-ms=4000`. Seen working on the phone (`SIGTERM to logd (1 process(es))`).
+  It turned out not to be needed for the log: the log was never lost, its times are compressed about 40x
+  (`tools/oneios-tool/README.md`, ioslog).
+- **0077** `oneios-log-debug=SUBSYSTEM[,...]`: before launchd, a Debug logging profile per subsystem in
+  `/private/var/preferences/Logging/Subsystems`. Phone (kernel.kc fa57bc09, `com.apple.BackBoard,com.apple.SpringBoard`):
+  both `written (0)`, and their Debug lines are in the log (logd reads that folder on iOS 16.5).
+- What the touch work found so far: SpringBoard's main thread waited ~66 s after the first frame for LaunchServices
+  (0043 above, fixed); after that the lock screen draws but ignores touches although backboardd processes them
+  (`touchstats`) and has a touch stream to SpringBoard. Cause not yet found.

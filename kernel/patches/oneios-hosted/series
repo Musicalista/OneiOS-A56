@@ -244,3 +244,19 @@
 # ("oneios-mac-exec: NAME: policy P refused the credential update (error E)", at most 200 lines) and, with
 # oneios-mac-exec-skip=NAME[,NAME...], ignores a Sandbox refusal for those executables (they run unsandboxed).
 0073-mac-exec-label-report.patch
+
+# A debugging aid for the A56 touch (iOS 16.5 on iOS 27 IOHIDFamily): oneios-dq-dump=N dumps the first N shared data
+# queue entries (IOHIDEvents queued for backboardd) in hex. Off without it.
+0074-shared-queue-dump.patch
+
+# A debugging aid for the A56 touch lag: oneios-dq-notify=1 counts the data queues' "data available" notifications
+# (IOHIDFamily's event queues to backboardd among them) and what each send returned, one line every 2 s. Off without it.
+0075-data-queue-notify-count.patch
+
+# The return's graceful window now flushes iOS's unified log: oneios_power_request() (the bridge's OB_CTL_SHUTDOWN,
+# xnuhost return-graceful-ms) sends logd SIGTERM, so its buffers reach the Data store before the kill. Not a power-off.
+0076-return-logd-flush.patch
+
+# A debugging aid: oneios-log-debug=SUBSYSTEM[,...] writes a Debug logging profile per subsystem into the Data store
+# (/private/var/preferences/Logging/Subsystems) before launchd, so their Info/Debug messages reach the log on disk.
+0077-log-debug-profiles.patch
