@@ -269,3 +269,7 @@
 # child) that iOS 16.5's IOKit misreads (0x68 bytes, x/y/z as IOFixed). oneios-hid16=1 rewrites them in place, in
 # 20F66's layout, at each "data available" notification. Off without it.
 0079-hid-digitizer-ios16.patch
+
+# Entitlements an older iOS's binaries lack: oneios-grant=PROC:ENTITLEMENT[,...] answers true for those pairs. The A56's
+# 20F66 configd needs com.apple.networking.ionetworkstack.user-client (iOS 27's IONetworkStack) to name en0.
+0080-entitlement-grant.patch

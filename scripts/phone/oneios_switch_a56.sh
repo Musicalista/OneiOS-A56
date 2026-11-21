@@ -731,11 +731,11 @@ case "$MODE" in
             if [ -z "$BA" ] && [ "$(conf /data/image.conf build)" = 20F66 ]; then
                 # The A56's 20F66 session as run on the phone (2026-11-18, the
                 # lock screen): no 3D virtio-gpu, no Metal, iOS 16's bootstrap
-                # replies (kernel 0069), the legacy unit scale and a 120 Hz vsync.
+                # replies (kernel 0069), the legacy unit scale and a 60 Hz vsync (2026-11-21: fewer frames for the CPU compositor). 2026-11-21 also: oneios-hid16=1 (kernel 0079: touch events in 16.5's layout), oneios-grant (kernel 0080: configd may name en0, so Wi-Fi comes up), oneios-ls-keep=1 (kernel 0043).
                 # The trace arguments of those runs (oneios-iouc, oneios-iokit,
                 # oneios-ubt*, sheng-exc-name, oneios-dq-dump,
                 # oneios-display-report) are left out: ONEIOS_DIAG_BOOTARGS adds them.
-                BA="debug=0x14e serial=3 -v kt_fixed_zones=120 -no_slto_panic ml-timeout-lock-panic-scale=40 tlto_us=0 sheng-smp=1 armcpu-self-ipi=1 armcpu-spi-ipi=1 use_contiguous_hint=0 interrupt-masked-debug-mode=0 sched_preemption_disable_debug_mode=0 wdt=-1 native-source-storage=1 vgpu-3d=0 droidvm-gpu-metal=0 ool_port_array_enforced=0 offline-legacy-unit-scale=3 sheng-vsync=120 oneios-legacy-bootstrap-replies=1"
+                BA="debug=0x14e serial=3 -v kt_fixed_zones=120 -no_slto_panic ml-timeout-lock-panic-scale=40 tlto_us=0 sheng-smp=1 armcpu-self-ipi=1 armcpu-spi-ipi=1 use_contiguous_hint=0 interrupt-masked-debug-mode=0 sched_preemption_disable_debug_mode=0 wdt=-1 native-source-storage=1 vgpu-3d=0 droidvm-gpu-metal=0 ool_port_array_enforced=0 offline-legacy-unit-scale=3 sheng-vsync=60 oneios-legacy-bootstrap-replies=1 oneios-hid16=1 oneios-grant=configd:com.apple.networking.ionetworkstack.user-client oneios-ls-keep=1"
             fi
             [ -n "$BA" ] || BA="debug=0x14e serial=3 -v kt_fixed_zones=120 -no_slto_panic ml-timeout-lock-panic-scale=40 tlto_us=0 sheng-smp=1 armcpu-self-ipi=1 armcpu-spi-ipi=1 use_contiguous_hint=0 interrupt-masked-debug-mode=0 sched_preemption_disable_debug_mode=0 wdt=-1 native-source-storage=1 vgpu-3d=1 droidvm-gpu-metal=1"
             BA=$(echo " $BA ${ONEIOS_DIAG_BOOTARGS:-} " | sed 's/ oneios-gpu-metal=[^ ]*//g; s/^ *//; s/ *$//')
@@ -784,7 +784,7 @@ case "$MODE" in
                 [1-9]*x[1-9]*)
                     FW=${FRAME%x*}; FH=${FRAME#*x}
                     case "$FW$FH" in *[!0-9]*) die_inner "ONEIOS_FRAME must be WxH or panel, not '$FRAME'" ;; esac
-                    set -- "$@" --width "$FW" --height "$FH" --hz 120 --scale 3
+                    set -- "$@" --width "$FW" --height "$FH" --hz 60 --scale 3
                     echo "oneios inner: guest frame ${FW}x${FH} @3x ($((FW / 3))x$((FH / 3)) points)" ;;
                 *) die_inner "ONEIOS_FRAME must be WxH or panel, not '$FRAME'" ;;
             esac
@@ -793,7 +793,7 @@ case "$MODE" in
         echo "oneios inner: $(date '+%F %T') starting /data/runtime/$R_XNUHOST (pid $$)"
         exec "/data/runtime/$R_XNUHOST" --session-abi $ABI --mode takeover \
             --runtime /data/runtime --image /data/image --data /data/data --session /data/session \
-            --ram 4096M --set ram-giveback=0 --set ram-prefault=1 --set ram-lock=1 --set wifi=sim "$@"
+            --ram 4096M --set ram-giveback=0 --set ram-prefault=1 --set ram-lock=1 --set wifi=auto --set return-graceful-ms=4000 "$@"
         echo "oneios inner: could not exec xnuhost"
         exit 71
         ;;

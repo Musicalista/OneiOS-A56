@@ -13,10 +13,25 @@ Unlike traditional ROMs or bare-metal replacements, **OneiOS does not flash part
 
 ## Screenshots from the Galaxy A56
 
-These captures show the OneiOS Manager running in Android. The iOS 16.5 validation run reached `Early boot complete` and displayed a black frame: `backboardd` was given a Metal accelerator whose IOGPU device client (type 1) the NativeAdreno driver does not serve. iOS 16.5 sessions now start without the accelerator (`oneios-gpu-metal=0`). The kernel collection carries iOS 27's IOMobileGraphicsFamily and IOSurface, whose structures differ from what iOS 16.5 sends and expects; kernel patch `0072` rewrites those calls (swap record, SupportedFrameInfo, IOSurface limits and surface info). With it the A56 shows the Apple boot logo drawn by iOS 16.5 (2026-11-17), and a QuartzCore text fixup makes CoreAnimation use the framebuffer's vsync. The boot does not yet go past the logo: SpringBoard stops early in its own start, before it draws anything (`docs/a56-guide.md`).
+iOS 16.5 (20F66) on the Galaxy A56, 2026-11-21: the lock screen and, after a swipe up, the home screen. These
+are the guest's own frames, read from xnuhost's shared frame (`memfd:xnuhost-frame`, 1080x2340 BGRX) during a
+session; Android's `screencap` does not work while iOS has the display. The red bar ("rdar:45025538") is UIKit's
+placeholder for a status bar it has no layout for at a 360x780-point screen (`docs/a56-guide.md`). The widgets say
+"Waiting..." because their extensions do not run yet.
+
+<img src="docs/screenshots/a56-ios16-lock.png" alt="iOS 16.5 lock screen on the Galaxy A56" width="300">
+<img src="docs/screenshots/a56-ios16-home.png" alt="iOS 16.5 home screen on the Galaxy A56" width="300">
+
+The OneiOS Manager app in Android (captured 2026-11-14):
 
 <img src="docs/screenshots/a56-oneios-manager.png" alt="OneiOS Manager on the Galaxy A56" width="300">
 <img src="docs/screenshots/a56-image-options.png" alt="iOS 16.5 image options in OneiOS Manager" width="300">
+
+What works on the A56 (2026-11-21): boot to the lock screen and home screen, touch (kernel 0079), Wi-Fi's
+interface comes up in iOS (kernel 0080; scans not yet seen), storage (a 32 GB Data volume kept between sessions),
+the return to One UI. Not yet: Bluetooth (iOS 16.5's bluetoothd crashes before it opens the controller), GPU
+acceleration (the UI is composited on the CPU at 60 Hz; `docs/gpu.md` section 8), sound (the speaker and mic are
+published; no playback seen yet).
 
 
 ## Why iOS 16.5 on Galaxy A56 5G? (Zero Stutter / 60–120 FPS)
@@ -26,7 +41,7 @@ While experimental builds of iOS 27 run into heavy zRAM paging (>16 GB disk imag
 1. **Ultra-Lightweight Footprint (2.4 GB vs 16.5 GB):** Fits entirely in physical RAM with over 3.5 GB free for host processes, eliminating all zRAM swap spikes and micro-stutters.
 2. **Clean SpringBoard Compositor:** Completely free from wallpaper daemon fallbacks, `intelligenceflowd`, and `ExtensionFoundation` CPU loops.
 3. **Dual RAMDisk (`RAMDisk` + `RAMDisk1`):** `xnuhost` maps both `/dev/md0` and `/dev/md1` in the device tree chosen memory-map, allowing `stage0` to mount `root.apfs` directly on `/redwood` with full LaunchDaemon orchestration.
-4. **Hardware AMDGPU Acceleration:** Directly utilizes `/dev/dri/renderD128` (Samsung Xclipse 540 / AMD RDNA3) with native PRIME `dma-buf` buffer imports.
+4. **AMDGPU path (in progress, not used by sessions):** a host renderer for `/dev/dri/renderD128` (Samsung Xclipse 540 / AMD RDNA3) passes native submit and fence tests; iOS does not draw through it yet (no Darwin Vulkan driver). Sessions composite on the CPU (`docs/gpu.md` section 8).
 
 ---
 
@@ -37,7 +52,7 @@ While experimental builds of iOS 27 run into heavy zRAM paging (>16 GB disk imag
   - 1x Cortex-X4 @ **2.91 GHz** (Prime)
   - 3x Cortex-A720 @ **2.60 GHz** (Performance)
   - 4x Cortex-A520 @ **1.95 GHz** (Efficiency)
-- **AMD RDNA3 (Xclipse 540) GPU Acceleration:** Direct Rendering Manager (DRM) `amdgpu` driver support over `/dev/dri/renderD128` with PRIME `dma-buf` memory import and response pool management.
+- **AMD RDNA3 (Xclipse 540) GPU: work in progress.** The host side (`amdgpu` over `/dev/dri/renderD128`, PRIME `dma-buf` import, response pool) exists and passes its self-tests; iOS is not accelerated yet.
 - **One UI / iOS Hybrid Manager APK:** Precompiled management app with Dynamic Island status indicator, hardware spec detection, and built-in terminal log.
 - **Failsafe Return Chord:** Hold **Volume Up + Volume Down for 3 seconds** at any time to instantly restore One UI in place.
 

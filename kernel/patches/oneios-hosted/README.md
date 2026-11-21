@@ -1124,3 +1124,18 @@ yet: the kernel build, prelink and a PC boot are the next step (`display/README.
   notification and stays unconverted. Tested on the PC against the dumped entry (x 0.50002, y 0.43588, finger,
   identity 2, mask 0x804, radius 5.00). Phone, 2026-11-21 (kernel.kc e831dec7, `oneios-hid16=1`): touch works; the
   test session drew 371 frames (`swapstat validated 371`) against about 10 before, and the owner confirmed it by hand.
+
+## 0080: entitlements an older iOS lacks (2026-11-21)
+
+- **0080** `oneios-grant=PROC:ENTITLEMENT[,...]` (iokit/Kernel/IOUserClient.cpp): when AMFI has no value for an
+  entitlement that `IOUserClient::copyClientEntitlement` is asked for, and the process name (as `proc_name` gives it)
+  and the entitlement match a listed pair, the answer is `kOSBooleanTrue`. One line per pair, the first time:
+  `oneios-grant: configd[31] given com.apple.networking.ionetworkstack.user-client`. Off without the argument.
+- Why: the A56's iOS 16.5 configd (InterfaceNamer) opens IONetworkStack to name en0. iOS 27's
+  `IONetworkStackUserClient::initWithTask` wants root and `com.apple.networking.ionetworkstack.user-client`, which
+  20F66's configd does not carry: the open failed (`0xe00002c2`), en0 was never named and wifid found no Wi-Fi
+  interface ("Device manager not present").
+- Tested on the A56 (kernel.kc `00d8b9cc`, 2026-11-21): the grant line, then `ONEIOS WIFI: first naming (en0
+  attached ...) by configd`, en0 up (IFF_UP) and wifid's Apple80211 requests (channels info: the host's 38
+  channels). Not yet seen: a scan request (none in a 60 s session without the Wi-Fi settings open) or a join.
+  The A56's switch script passes `oneios-grant=configd:com.apple.networking.ionetworkstack.user-client`.
