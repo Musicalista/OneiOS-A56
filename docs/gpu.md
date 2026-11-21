@@ -914,3 +914,15 @@ re-signed by both: the same bytes).
 showed it to iOS (section 5.1), and that patch has compiled but not run. Whether dyld and AMFI of this guest accept the binaries, whether the
 writes above have the effect they have on the iPad, and whether MetalCheck passes are all open.
 
+
+## 8. The Galaxy A56: Xclipse (AMDGPU)
+
+The A56's GPU is a Samsung Xclipse (AMD RDNA, Linux `amdgpu`), so drm2kgsl and Turnip (sections 2 and 7) do not
+fit it. The host side of an AMDGPU path (a virglrenderer `amdgpu` native context, `xnuhost --selftest-xclipse`, a
+response pool) and a guest probe were written on 2026-11-13/14 outside this repository and brought in on
+2026-11-21: `runtime/xnuhost/amdgpu/README.md` (files, build, results), `runtime/xnuhost/src/gpu3d_xclipse.c`,
+`gpu_pool.c`, `userland/metal/amdgpu/`. Linked only with `AMDGPU_RENDERER_LIBS`.
+
+Results then: native submits and fences on the host PASS; a GFX NOP from the guest kernel through virtio PASS;
+iOS 16.5's UI with `vgpu-3d=1` black. Missing: a Darwin Vulkan driver for this protocol and Metal on it. The A56's
+sessions run `--gpu 2d` (60 Hz since 2026-11-21).
