@@ -260,3 +260,12 @@
 # A debugging aid: oneios-log-debug=SUBSYSTEM[,...] writes a Debug logging profile per subsystem into the Data store
 # (/private/var/preferences/Logging/Subsystems) before launchd, so their Info/Debug messages reach the log on disk.
 0077-log-debug-profiles.patch
+
+# A debugging aid for the A56 touch: oneios-dq-head=N dumps, at each "data available" notification, the entry at the
+# queue's head (IOHIDFamily's queues write their events without IOSharedDataQueue::enqueue, which 0074 hooks).
+0078-data-queue-head-dump.patch
+
+# The A56's touch: iOS 27's IOHIDFamily writes digitizer events (0xa0 bytes, x/y/z as doubles, a header before each
+# child) that iOS 16.5's IOKit misreads (0x68 bytes, x/y/z as IOFixed). oneios-hid16=1 rewrites them in place, in
+# 20F66's layout, at each "data available" notification. Off without it.
+0079-hid-digitizer-ios16.patch

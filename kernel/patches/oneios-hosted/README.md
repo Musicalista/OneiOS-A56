@@ -1103,4 +1103,24 @@ yet: the kernel build, prelink and a PC boot are the next step (`display/README.
   both `written (0)`, and their Debug lines are in the log (logd reads that folder on iOS 16.5).
 - What the touch work found so far: SpringBoard's main thread waited ~66 s after the first frame for LaunchServices
   (0043 above, fixed); after that the lock screen draws but ignores touches although backboardd processes them
-  (`touchstats`) and has a touch stream to SpringBoard. Cause not yet found.
+  (`touchstats`) and has a touch stream to SpringBoard. Cause and fix: 0078-0079 below (event layout).
+
+## 0078-0079: the A56 touch's cause and its fix (2026-11-19/21)
+
+- **0078** `oneios-dq-head=N`: at each IODataQueue "data available" notification, the bytes of the entry at the
+  queue's head (IOHIDFamily's event queues write without `IOSharedDataQueue::enqueue`, so 0074 printed nothing).
+  Phone (kernel.kc 9f75a2c9): every touch entry is 0x178 bytes: a 28-byte header {timestamp, sender, options,
+  attribute size, event count 2}, a digitizer event of 0xa0 bytes (x/y/z as doubles at 16/24/32, transducer type 2,
+  identity, event mask 0x804, orientation "quality" with radii 5.0 as doubles), then a second 28-byte header and the
+  child digitizer event (depth 1).
+- **The cause.** 20F66's IOKit, read in its shared cache: `IOHIDEventCreateWithBytes` takes the 28-byte header and
+  then the events back to back (each by its own size), and `IOHIDEventGetFloatValueWithOptions` reads a digitizer's
+  x/y/z as IOFixed at 16/20/24 (`scvtf` and 1/65536), pressure/aux/twist as floats at 52/56/60, the orientation type at
+  64: a 0x68-byte event. So backboardd parsed iOS 27's events as garbage: it counted them (`touchstats`), SpringBoard
+  got no touch event, the lock screen never moved.
+- **0079** `oneios-hid16=1`: at each notification, the queue's unread elements made only of iOS 27 digitizer events
+  are rewritten in place into 20F66's layout (header kept, events back to back, IOFixed and floats from the doubles
+  without floating point, the rest of the entry zeroed). An element written while the queue was not empty gets no
+  notification and stays unconverted. Tested on the PC against the dumped entry (x 0.50002, y 0.43588, finger,
+  identity 2, mask 0x804, radius 5.00). Phone, 2026-11-21 (kernel.kc e831dec7, `oneios-hid16=1`): touch works; the
+  test session drew 371 frames (`swapstat validated 371`) against about 10 before, and the owner confirmed it by hand.
