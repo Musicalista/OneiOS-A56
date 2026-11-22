@@ -30,7 +30,7 @@ The OneiOS Manager app in Android (captured 2026-11-14):
 What works on the A56 (2026-11-21): boot to the lock screen and home screen, touch (kernel 0079), Wi-Fi's
 interface comes up in iOS (kernel 0080; scans not yet seen), storage (a 32 GB Data volume kept between sessions),
 the return to One UI. Not yet: Bluetooth (iOS 16.5's bluetoothd crashes before it opens the controller), GPU
-acceleration (the UI is composited on the CPU at 60 Hz; `docs/gpu.md` section 8), sound (the speaker and mic are
+acceleration (the UI is composited on the CPU at 60 Hz, in a 720x1560 @2x frame scaled to the panel; `docs/gpu.md` section 8), sound (the speaker and mic are
 published; no playback seen yet).
 
 

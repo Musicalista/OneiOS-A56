@@ -718,6 +718,12 @@ case "$MODE" in
         # (docs/gpu.md). So for 20F66 the accelerator is not published
         # (oneios-gpu-metal=0, which wins over droidvm-gpu-metal=1 in the
         # image's boot arguments). ONEIOS_GPU_METAL=0|1 forces either way.
+        # The guest frame and its UI scale (2026-11-22): 720x1560 @2x (360x780 points, the same layout as 1080x2340
+        # @3x) is 2.25x fewer pixels for the CPU compositor; the compositor scales it to the panel. The kernel's
+        # offline-legacy-unit-scale must equal --scale, or the display probe gives up (and its release panicked).
+        # ONEIOS_FRAME=1080x2340 ONEIOS_SCALE=3 is the old frame.
+        UI_SCALE="${ONEIOS_SCALE:-2}"
+        case "$UI_SCALE" in 2|3) ;; *) die_inner "ONEIOS_SCALE must be 2 or 3, not '$UI_SCALE'" ;; esac
         GPU_METAL="${ONEIOS_GPU_METAL:-}"
         if [ -z "$GPU_METAL" ]; then
             case "$(conf /data/image.conf build)" in 20F66) GPU_METAL=0 ;; esac
@@ -731,11 +737,11 @@ case "$MODE" in
             if [ -z "$BA" ] && [ "$(conf /data/image.conf build)" = 20F66 ]; then
                 # The A56's 20F66 session as run on the phone (2026-11-18, the
                 # lock screen): no 3D virtio-gpu, no Metal, iOS 16's bootstrap
-                # replies (kernel 0069), the legacy unit scale and a 60 Hz vsync (2026-11-21: fewer frames for the CPU compositor). 2026-11-21 also: oneios-hid16=1 (kernel 0079: touch events in 16.5's layout), oneios-grant (kernel 0080: configd may name en0, so Wi-Fi comes up), oneios-ls-keep=1 (kernel 0043).
+                # replies (kernel 0069), the legacy unit scale and a 60 Hz vsync (2026-11-21: fewer frames for the CPU compositor). 2026-11-21 also: oneios-hid16=1 (kernel 0079: touch events in 16.5's layout), oneios-grant (kernel 0080: configd may name en0, so Wi-Fi comes up), oneios-ls-keep=1 (kernel 0043). 2026-11-22: oneios-disable-jobs (kernel 0053) adds suggestd, corespotlightservice and tailspind to the jobs the image already disables (analyticsd stays on: kernel 0044 says why).
                 # The trace arguments of those runs (oneios-iouc, oneios-iokit,
                 # oneios-ubt*, sheng-exc-name, oneios-dq-dump,
                 # oneios-display-report) are left out: ONEIOS_DIAG_BOOTARGS adds them.
-                BA="debug=0x14e serial=3 -v kt_fixed_zones=120 -no_slto_panic ml-timeout-lock-panic-scale=40 tlto_us=0 sheng-smp=1 armcpu-self-ipi=1 armcpu-spi-ipi=1 use_contiguous_hint=0 interrupt-masked-debug-mode=0 sched_preemption_disable_debug_mode=0 wdt=-1 native-source-storage=1 vgpu-3d=0 droidvm-gpu-metal=0 ool_port_array_enforced=0 offline-legacy-unit-scale=3 sheng-vsync=60 oneios-legacy-bootstrap-replies=1 oneios-hid16=1 oneios-grant=configd:com.apple.networking.ionetworkstack.user-client oneios-ls-keep=1"
+                BA="debug=0x14e serial=3 -v kt_fixed_zones=120 -no_slto_panic ml-timeout-lock-panic-scale=40 tlto_us=0 sheng-smp=1 armcpu-self-ipi=1 armcpu-spi-ipi=1 use_contiguous_hint=0 interrupt-masked-debug-mode=0 sched_preemption_disable_debug_mode=0 wdt=-1 native-source-storage=1 vgpu-3d=0 droidvm-gpu-metal=0 ool_port_array_enforced=0 offline-legacy-unit-scale=$UI_SCALE sheng-vsync=60 oneios-legacy-bootstrap-replies=1 oneios-hid16=1 oneios-grant=configd:com.apple.networking.ionetworkstack.user-client oneios-ls-keep=1 oneios-disable-jobs=com.apple.accessibility.axassetsd,com.apple.suggestd,com.apple.spotlightknowledged,com.apple.corespotlightservice,com.apple.siriknowledged,com.apple.tipsd,com.apple.gamed,com.apple.followupd,com.apple.tailspind"
             fi
             [ -n "$BA" ] || BA="debug=0x14e serial=3 -v kt_fixed_zones=120 -no_slto_panic ml-timeout-lock-panic-scale=40 tlto_us=0 sheng-smp=1 armcpu-self-ipi=1 armcpu-spi-ipi=1 use_contiguous_hint=0 interrupt-masked-debug-mode=0 sched_preemption_disable_debug_mode=0 wdt=-1 native-source-storage=1 vgpu-3d=1 droidvm-gpu-metal=1"
             BA=$(echo " $BA ${ONEIOS_DIAG_BOOTARGS:-} " | sed 's/ oneios-gpu-metal=[^ ]*//g; s/^ *//; s/ *$//')
@@ -778,14 +784,14 @@ case "$MODE" in
             # (2026-11-18) SpringBoard then aborted in a loop (SIGABRT every
             # ~11 s, Apple logo); why is open. ONEIOS_FRAME=WxH tries another
             # size; ONEIOS_FRAME=panel asks the panel's mode.
-            FRAME="${ONEIOS_FRAME:-1080x2340}"
+            FRAME="${ONEIOS_FRAME:-720x1560}"
             case "$FRAME" in
                 panel) echo "oneios inner: guest frame: the panel's mode (ONEIOS_FRAME=panel)" ;;
                 [1-9]*x[1-9]*)
                     FW=${FRAME%x*}; FH=${FRAME#*x}
                     case "$FW$FH" in *[!0-9]*) die_inner "ONEIOS_FRAME must be WxH or panel, not '$FRAME'" ;; esac
-                    set -- "$@" --width "$FW" --height "$FH" --hz 60 --scale 3
-                    echo "oneios inner: guest frame ${FW}x${FH} @3x ($((FW / 3))x$((FH / 3)) points)" ;;
+                    set -- "$@" --width "$FW" --height "$FH" --hz 60 --scale "$UI_SCALE"
+                    echo "oneios inner: guest frame ${FW}x${FH} @${UI_SCALE}x ($((FW / UI_SCALE))x$((FH / UI_SCALE)) points)" ;;
                 *) die_inner "ONEIOS_FRAME must be WxH or panel, not '$FRAME'" ;;
             esac
         fi
