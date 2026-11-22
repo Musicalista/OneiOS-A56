@@ -39,6 +39,15 @@ public final class Manager extends Activity {
     private static final String ROOT_SHA = "6c635500bb42807d70b493cbc6a16dc7f56f198f92d2cf6aa43ed94e9b9362db";
     private static final String BOOTSTRAP_ASSET = "bootstrap.tar.gz";
     private static final String IMAGE_BASE = "ios16.5-a56-image.tar.gz";
+    // The A56 kernel with kernel patches 0079 (touch in iOS 16.5's event layout) and 0080 (configd's IONetworkStack
+    // entitlement: Wi-Fi's en0). The release image carries an older kernel; this one replaces it in image/ and
+    // stage_ios16.sh records it. Pinned by SHA-256: a download that differs is refused.
+    private static final String KERNEL_ASSET = "a56-kernel.kc";
+    private static final String KERNEL_SHA = "00d8b9cced5e8f02b65e60bd6dc2be676dbc6bf081ec5ee8799b17081a12c6d9";
+    private static final long KERNEL_SIZE = 95731712L;
+    private static final String KERNEL_HASHES_ASSET = "a56-kernel.kc.hashes";
+    private static final String KERNEL_HASHES_SHA = "c081d62eddd4b779a16b55cf400a8ad0a2801363870fb60e0ef5772092c5c485";
+    private static final long KERNEL_HASHES_SIZE = 2976L;
     private static final String RELEASE_API = "https://api.github.com/repos/Musicalista/OneiOS-A56/releases/tags/v1.0.0";
     private static final String RELEASE_DL = "https://github.com/Musicalista/OneiOS-A56/releases/download/v1.0.0/";
     private volatile boolean alive = true;
@@ -374,7 +383,8 @@ public final class Manager extends Activity {
         final String[] options = {
             "📥   Baixar direto do GitHub Releases (iOS 16.5)",
             "📂   Importar arquivo baixado (/sdcard/Download)",
-            "🔗   Inserir URL personalizada"
+            "🔗   Inserir URL personalizada",
+            "⬆   Atualizar só o kernel (toque + Wi-Fi)"
         };
 
         new AlertDialog.Builder(this)
@@ -384,6 +394,8 @@ public final class Manager extends Activity {
                     startDownloadGithub();
                 } else if (which == 1) {
                     importFromLocal();
+                } else if (which == 3) {
+                    startKernelUpdate();
                 } else {
                     showCustomUrlDialog();
                 }
@@ -451,6 +463,7 @@ public final class Manager extends Activity {
                     String label = "Parte " + (i + 1) + "/" + parts.size();
                     download(p.url, new File(dir, p.name), p.size, label);
                 }
+                downloadKernel(dir);
                 File first = new File(dir, parts.get(0).name);
                 ui(() -> {
                     say("[$] Download de todas as partes concluído.");
@@ -550,6 +563,64 @@ public final class Manager extends Activity {
         String last = s.substring(cut + 1);
         if (last.startsWith("    ↳ ")) status.setText(s.substring(0, cut + 1));
         say("    ↳ " + text);
+    }
+
+    /** Downloads the pinned kernel pair into dir and checks both hashes. Throws on a mismatch. */
+    private void downloadKernel(File dir) throws Exception {
+        File kc = new File(dir, KERNEL_ASSET), kh = new File(dir, KERNEL_HASHES_ASSET);
+        download(RELEASE_DL + KERNEL_ASSET, kc, KERNEL_SIZE, "Kernel");
+        download(RELEASE_DL + KERNEL_HASHES_ASSET, kh, KERNEL_HASHES_SIZE, "Kernel (hashes)");
+        String[][] want = { { kc.getAbsolutePath(), KERNEL_SHA }, { kh.getAbsolutePath(), KERNEL_HASHES_SHA } };
+        for (String[] w : want) {
+            String got;
+            try (InputStream in = new java.io.FileInputStream(w[0])) { got = sha256(in); }
+            if (!got.equals(w[1])) {
+                new File(w[0]).delete();
+                throw new java.io.IOException(new File(w[0]).getName() + ": SHA-256 " + got.substring(0, 12) + "… não confere com o do app");
+            }
+        }
+        ui(() -> say("[$] Kernel baixado e conferido (SHA-256 " + KERNEL_SHA.substring(0, 12) + "…)."));
+    }
+
+    /** Shell lines that put the downloaded kernel pair (if present in the app's download folder) into $I. */
+    private String kernelInstallShell() {
+        String d = shq(downloadDir().getAbsolutePath());
+        return "KD=" + d + "; if [ -f \"$KD/" + KERNEL_ASSET + "\" ] && [ -f \"$KD/" + KERNEL_HASHES_ASSET + "\" ]; then "
+            + "[ \"$(sha256sum \"$KD/" + KERNEL_ASSET + "\" | cut -d' ' -f1)\" = " + KERNEL_SHA + " ] "
+            + "&& [ \"$(sha256sum \"$KD/" + KERNEL_HASHES_ASSET + "\" | cut -d' ' -f1)\" = " + KERNEL_HASHES_SHA + " ] "
+            + "|| { echo '[!] O kernel baixado não confere com o SHA-256 do app.'; exit 1; }; "
+            + "cat \"$KD/" + KERNEL_ASSET + "\" > \"$I/kernel.kc\" && cat \"$KD/" + KERNEL_HASHES_ASSET + "\" > \"$I/kernel.kc.hashes\" || exit 1; "
+            + "chown 0:0 \"$I/kernel.kc\" \"$I/kernel.kc.hashes\"; chmod 644 \"$I/kernel.kc\" \"$I/kernel.kc.hashes\"; "
+            + "rm -f \"$KD/" + KERNEL_ASSET + "\" \"$KD/" + KERNEL_HASHES_ASSET + "\"; "
+            + "echo '[$] Kernel novo instalado (toque + Wi-Fi).'; fi; ";
+    }
+
+    /** Replaces only the kernel of an image already staged, then records it again (stage_ios16.sh). */
+    private void startKernelUpdate() {
+        if (busy) return;
+        busy = true;
+        setStartReady(false);
+        setBadge("#29B6F6", "BAIXANDO");
+        status.setText("[$] Baixando o kernel novo do GitHub Releases...\n");
+        new Thread(() -> {
+            try {
+                downloadKernel(downloadDir());
+                String sh = SESSION_GUARD
+                    + "I=" + STAGE + "/image; "
+                    + "[ -f \"$I/manifest.json\" ] || { echo '[!] Nenhuma imagem instalada: instale a imagem primeiro.'; exit 1; }; "
+                    + kernelInstallShell()
+                    + "/system/bin/sh $S/stage_ios16.sh > $S/stage_ios16.log 2>&1 || { echo '[!] stage_ios16.sh falhou:'; tail -n 15 $S/stage_ios16.log; exit 1; }; "
+                    + "echo '=== Kernel atualizado ==='";
+                ui(() -> { busy = false; runShell("Atualizar kernel", sh); });
+            } catch (Exception e) {
+                final String err = String.valueOf(e.getMessage());
+                ui(() -> {
+                    busy = false;
+                    say("[!] Erro ao baixar o kernel: " + err);
+                    setBadge("#FF5252", "ERRO DOWNLOAD");
+                });
+            }
+        }).start();
     }
 
     private void showCustomUrlDialog() {
@@ -703,6 +774,7 @@ public final class Manager extends Activity {
             + "[ -n \"$(ls -A \"$N\")\" ] || { echo '[!] O pacote está vazio.'; rm -rf \"$N\"; exit 1; }; "
             + "rm -rf \"$I\" && mv \"$N\" \"$I\" || exit 1; "
             + "chown -R 0:0 \"$I\"; find \"$I\" -type d -exec chmod 755 {} +; find \"$I\" -type f -exec chmod 644 {} +; "
+            + kernelInstallShell()
             + "echo '[$] Calculando checksums (stage_ios16.sh)...'; "
             + "/system/bin/sh $S/stage_ios16.sh > $S/stage_ios16.log 2>&1 || { echo '[!] stage_ios16.sh falhou:'; tail -n 15 $S/stage_ios16.log; exit 1; }; "
             + "echo \"[$] $(wc -l < $S/image.sha256) arquivo(s) registrados; log completo em $S/stage_ios16.log\"; "

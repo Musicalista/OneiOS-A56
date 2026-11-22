@@ -67,6 +67,8 @@ While experimental builds of iOS 27 run into heavy zRAM paging (>16 GB disk imag
 4. Select **Baixar direto do GitHub Releases** to automatically download, extract, and configure the image.
 5. Once the badge turns green (**SISTEMA PRONTO**), tap **▶ INICIAR SESSÃO IOS**.
 
+The GitHub download also fetches `a56-kernel.kc` (+ `.hashes`) from the same release: the A56 kernel with patches 0079 (touch) and 0080 (Wi-Fi's en0), pinned by SHA-256 in the app (`00d8b9cc…`), which replaces the image's older kernel. An image already installed gets it with **⬆ Atualizar só o kernel (toque + Wi-Fi)** in the same menu.
+
 ### Option B: Manual Deploy via ADB
 1. Download and install `OneiOS-A56.apk`.
 2. Deploy the runtime and image files to `/data/local/tmp/oneios/`:
